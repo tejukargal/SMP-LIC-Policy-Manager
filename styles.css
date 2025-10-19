@@ -533,6 +533,7 @@ header h1 {
     border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 500;
+    color: var(--text-primary);
 }
 
 .badge-teaching {
@@ -1152,7 +1153,7 @@ header h1 {
 /* Additional Badge Styles */
 .badge-active {
     background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
+    color: white !important;
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -1161,7 +1162,7 @@ header h1 {
 
 .badge-retired {
     background: linear-gradient(135deg, #6b7280, #4b5563);
-    color: white;
+    color: white !important;
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 0.75rem;
