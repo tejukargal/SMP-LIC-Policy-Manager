@@ -4,6 +4,8 @@ let currentStaff = null;
 let policyCounter = 1;
 let licRecords = {};
 let isViewMode = false;
+let userType = null; // 'user' or 'admin'
+let isAuthenticated = false;
 
 // DOM Elements
 const staffList = document.getElementById('staffList');
@@ -43,6 +45,37 @@ const cancelEditBtn = document.getElementById('cancelEditBtn');
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check if user is already authenticated
+    checkAuthentication();
+
+    // Setup login event listeners
+    setupLoginListeners();
+
+    // If authenticated, load the app
+    if (isAuthenticated) {
+        await loadApp();
+    }
+});
+
+// Check authentication from sessionStorage
+function checkAuthentication() {
+    const savedUserType = sessionStorage.getItem('userType');
+    const savedAuth = sessionStorage.getItem('isAuthenticated');
+
+    if (savedAuth === 'true' && savedUserType) {
+        userType = savedUserType;
+        isAuthenticated = true;
+    }
+}
+
+// Load main app
+async function loadApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+
+    // Update user info in header
+    updateUserInfo();
+
     await loadCSV();
     setupEventListeners();
     await fetchLICRecords();
@@ -53,10 +86,97 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => {
         searchInput.focus();
     }, 100);
-});
+}
+
+// Setup login listeners
+function setupLoginListeners() {
+    const userLoginBtn = document.getElementById('userLoginBtn');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
+    const adminAuthForm = document.getElementById('adminAuthForm');
+    const backToOptionsBtn = document.getElementById('backToOptionsBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // User login (direct access)
+    userLoginBtn.addEventListener('click', () => {
+        userType = 'user';
+        isAuthenticated = true;
+        sessionStorage.setItem('userType', 'user');
+        sessionStorage.setItem('isAuthenticated', 'true');
+        loadApp();
+    });
+
+    // Admin login (show form)
+    adminLoginBtn.addEventListener('click', () => {
+        document.querySelector('.login-options').style.display = 'none';
+        document.querySelector('.login-content h2').style.display = 'none';
+        document.getElementById('adminLoginForm').style.display = 'block';
+        setTimeout(() => {
+            document.getElementById('adminUsername').focus();
+        }, 100);
+    });
+
+    // Back to options
+    backToOptionsBtn.addEventListener('click', () => {
+        document.querySelector('.login-options').style.display = 'grid';
+        document.querySelector('.login-content h2').style.display = 'block';
+        document.getElementById('adminLoginForm').style.display = 'none';
+        adminAuthForm.reset();
+    });
+
+    // Admin authentication
+    adminAuthForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('adminUsername').value;
+        const password = document.getElementById('adminPassword').value;
+
+        // Validate credentials
+        if (username === 'admin' && password === 'teju2015') {
+            userType = 'admin';
+            isAuthenticated = true;
+            sessionStorage.setItem('userType', 'admin');
+            sessionStorage.setItem('isAuthenticated', 'true');
+            loadApp();
+        } else {
+            alert('Invalid username or password!');
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminPassword').focus();
+        }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to logout?')) {
+            userType = null;
+            isAuthenticated = false;
+            sessionStorage.removeItem('userType');
+            sessionStorage.removeItem('isAuthenticated');
+            document.getElementById('mainApp').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.querySelector('.login-options').style.display = 'grid';
+            document.querySelector('.login-content h2').style.display = 'block';
+            document.getElementById('adminLoginForm').style.display = 'none';
+            document.getElementById('adminAuthForm').reset();
+        }
+    });
+}
+
+// Update user info display
+function updateUserInfo() {
+    const userInfoEl = document.getElementById('userInfo');
+    if (userType === 'admin') {
+        userInfoEl.innerHTML = '<span style="color: #fbbf24;">🔐 Admin Access - Full Privileges</span>';
+    } else {
+        userInfoEl.innerHTML = '<span style="color: #60a5fa;">👤 User Access - View Only</span>';
+    }
+}
 
 // Setup event listeners
 function setupEventListeners() {
+    // Hide hamburger menu for regular users
+    if (userType !== 'admin') {
+        hamburgerBtn.style.display = 'none';
+    }
+
     // Search functionality - on button click
     searchBtn.addEventListener('click', filterStaff);
 
@@ -195,6 +315,24 @@ function createStaffItem(staff) {
         `;
     }
 
+    // Show different buttons based on user type
+    let actionButtons = '';
+    if (userType === 'admin') {
+        actionButtons = `
+            <div>
+                ${hasLIC ? `<button class="btn btn-view" onclick="viewLICDetails(${staff.sl})">View Details</button>` : ''}
+                <button class="btn btn-primary" onclick="openLICModal(${staff.sl})">Enter Details</button>
+            </div>
+        `;
+    } else {
+        // User can only view if there are LIC records
+        actionButtons = hasLIC ? `
+            <div>
+                <button class="btn btn-view" onclick="viewLICDetails(${staff.sl})">View Details</button>
+            </div>
+        ` : '';
+    }
+
     div.innerHTML = `
         <div class="staff-details">
             <div class="staff-name">${staff.name}</div>
@@ -206,10 +344,7 @@ function createStaffItem(staff) {
             </div>
             ${licStatusHTML}
         </div>
-        <div>
-            ${hasLIC ? `<button class="btn btn-view" onclick="viewLICDetails(${staff.sl})">View Details</button>` : ''}
-            <button class="btn btn-primary" onclick="openLICModal(${staff.sl})">Enter Details</button>
-        </div>
+        ${actionButtons}
     `;
 
     return div;
@@ -271,6 +406,12 @@ function clearSearch() {
 
 // Open LIC modal
 function openLICModal(staffSL) {
+    // Only admin can enter/edit details
+    if (userType !== 'admin') {
+        showToast('Only administrators can enter or edit LIC details', 'warning');
+        return;
+    }
+
     currentStaff = staffData.find(s => s.sl == staffSL);
     if (!currentStaff) return;
 
@@ -403,6 +544,17 @@ function displayExistingPolicies(staffSL) {
         totalPremium += premium;
         const rowClass = index % 2 === 0 ? 'even-row' : 'odd-row';
         const maturityDate = policy.maturity_date || '-';
+
+        // Show action buttons only for admin
+        const actionButtons = userType === 'admin' ? `
+            <button class="btn-icon btn-edit" onclick="editPolicy(${policy.id})" title="Edit">
+                <span>✏️</span>
+            </button>
+            <button class="btn-icon btn-delete" onclick="deletePolicy(${policy.id}, '${policy.policy_no}')" title="Delete">
+                <span>🗑️</span>
+            </button>
+        ` : '-';
+
         html += `
             <tr class="${rowClass}">
                 <td class="sl-cell">${index + 1}</td>
@@ -410,14 +562,7 @@ function displayExistingPolicies(staffSL) {
                 <td class="amount-cell">Rs. ${premium.toFixed(2)}</td>
                 <td class="maturity-cell">${maturityDate}</td>
                 <td class="date-cell">${addedDate}</td>
-                <td class="actions-cell">
-                    <button class="btn-icon btn-edit" onclick="editPolicy(${policy.id})" title="Edit">
-                        <span>✏️</span>
-                    </button>
-                    <button class="btn-icon btn-delete" onclick="deletePolicy(${policy.id}, '${policy.policy_no}')" title="Delete">
-                        <span>🗑️</span>
-                    </button>
-                </td>
+                <td class="actions-cell">${actionButtons}</td>
             </tr>
         `;
     });
@@ -683,6 +828,12 @@ async function saveLICDetails(e) {
 
 // Edit policy - Open edit modal
 function editPolicy(policyId) {
+    // Only admin can edit
+    if (userType !== 'admin') {
+        showToast('Only administrators can edit policies', 'warning');
+        return;
+    }
+
     // Find the policy
     let policyToEdit = null;
     let staffSL = null;
@@ -789,6 +940,12 @@ async function updatePolicy(e) {
 
 // Delete policy
 async function deletePolicy(policyId, policyNo) {
+    // Only admin can delete
+    if (userType !== 'admin') {
+        showToast('Only administrators can delete policies', 'warning');
+        return;
+    }
+
     const confirmed = confirm(`Are you sure you want to delete policy "${policyNo}"?\n\nThis action cannot be undone.`);
 
     if (!confirmed) return;

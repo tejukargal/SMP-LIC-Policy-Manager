@@ -7,18 +7,70 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <h1>Staff LIC Records Management</h1>
+                <p>Secure Access Portal</p>
+            </div>
+
+            <div class="login-content">
+                <h2>Select Login Type</h2>
+
+                <div class="login-options">
+                    <button class="login-option-btn" id="userLoginBtn">
+                        <div class="option-icon">👤</div>
+                        <div class="option-title">Login as User</div>
+                        <div class="option-desc">View-only access to records</div>
+                    </button>
+
+                    <button class="login-option-btn" id="adminLoginBtn">
+                        <div class="option-icon">🔐</div>
+                        <div class="option-title">Login as Admin</div>
+                        <div class="option-desc">Full access with edit privileges</div>
+                    </button>
+                </div>
+
+                <!-- Admin Login Form (Hidden by default) -->
+                <div id="adminLoginForm" class="admin-login-form" style="display: none;">
+                    <h3>Admin Login</h3>
+                    <form id="adminAuthForm">
+                        <div class="form-group">
+                            <label for="adminUsername">Username</label>
+                            <input type="text" id="adminUsername" required autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label for="adminPassword">Password</label>
+                            <input type="password" id="adminPassword" required autocomplete="current-password">
+                        </div>
+                        <div class="login-buttons">
+                            <button type="submit" class="btn btn-primary">Login</button>
+                            <button type="button" class="btn btn-cancel" id="backToOptionsBtn">Back</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App (Hidden by default) -->
+    <div class="container" id="mainApp" style="display: none;">
         <header>
             <div class="header-content">
                 <div>
                     <h1>Staff LIC Records Management System</h1>
                     <p class="subtitle">Manage LIC Policy Details for Staff Members</p>
+                    <p class="user-info" id="userInfo"></p>
                 </div>
-                <button class="hamburger-menu" id="hamburgerBtn">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </button>
+                <div class="header-actions">
+                    <button class="btn-logout" id="logoutBtn">Logout</button>
+                    <button class="hamburger-menu" id="hamburgerBtn">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
             </div>
         </header>
 
