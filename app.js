@@ -374,6 +374,45 @@ function setupEventListeners() {
             closeTotalPoliciesModalFunc();
         }
     });
+
+    // Total Staff modal (Admin only)
+    const totalStaffCard = document.getElementById('totalStaffCard');
+    const closeTotalStaffModal = document.getElementById('closeTotalStaffModal');
+    const totalStaffModal = document.getElementById('totalStaffModal');
+
+    if (totalStaffCard && userType === 'admin') {
+        totalStaffCard.addEventListener('click', openTotalStaffModal);
+    }
+
+    if (closeTotalStaffModal) {
+        closeTotalStaffModal.addEventListener('click', closeTotalStaffModalFunc);
+    }
+
+    // Click outside total staff modal to close
+    window.addEventListener('click', (e) => {
+        if (e.target === totalStaffModal) {
+            closeTotalStaffModalFunc();
+        }
+    });
+
+    // Staff filters
+    const filterType = document.getElementById('filterType');
+    const filterDept = document.getElementById('filterDept');
+    const filterStatus = document.getElementById('filterStatus');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+
+    if (filterType) {
+        filterType.addEventListener('change', applyStaffFilters);
+    }
+    if (filterDept) {
+        filterDept.addEventListener('change', applyStaffFilters);
+    }
+    if (filterStatus) {
+        filterStatus.addEventListener('change', applyStaffFilters);
+    }
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', resetStaffFilters);
+    }
 }
 
 // Load staff data - try database first, fallback to CSV
@@ -1946,4 +1985,138 @@ async function handleMigrationToDatabase() {
     } finally {
         showLoading(false);
     }
+}
+
+// ==================== TOTAL STAFF MODAL FUNCTIONS ====================
+
+// Global filtered staff data for table
+let filteredStaffData = [];
+
+// Open Total Staff modal
+function openTotalStaffModal() {
+    // Only allow admin users
+    if (userType !== 'admin') {
+        showToast('Only administrators can view all staff details', 'warning');
+        return;
+    }
+
+    // Reset filters
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDept').value = '';
+    document.getElementById('filterStatus').value = '';
+
+    // Display all staff
+    filteredStaffData = [...staffData];
+    renderStaffTable();
+
+    document.getElementById('totalStaffModal').style.display = 'block';
+}
+
+// Close Total Staff modal
+function closeTotalStaffModalFunc() {
+    document.getElementById('totalStaffModal').style.display = 'none';
+}
+
+// Render staff table with current filters
+function renderStaffTable() {
+    const container = document.getElementById('totalStaffTableContainer');
+
+    if (filteredStaffData.length === 0) {
+        container.innerHTML = '<p style="text-align: center; padding: 40px; color: #64748b;">No staff members found.</p>';
+        return;
+    }
+
+    // Generate table HTML
+    let tableHTML = `
+        <table class="total-staff-table">
+            <thead>
+                <tr>
+                    <th class="col-sl">Sl</th>
+                    <th class="col-name">Name</th>
+                    <th class="col-designation">Designation</th>
+                    <th class="col-type">Type</th>
+                    <th class="col-dept">Dept</th>
+                    <th class="col-status">Status</th>
+                    <th class="col-dob">DOB</th>
+                    <th class="col-empid">Emp ID</th>
+                    <th class="col-doe">DOE</th>
+                    <th class="col-bank">Bank Acct No</th>
+                    <th class="col-pan">PAN</th>
+                    <th class="col-aadhar">Aadhar</th>
+                    <th class="col-phone">Phone</th>
+                    <th class="col-email">Mail ID</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    filteredStaffData.forEach((staff, index) => {
+        const rowClass = index % 2 === 0 ? 'even-row' : 'odd-row';
+
+        tableHTML += `
+            <tr class="${rowClass}">
+                <td class="col-sl">${staff.sl || '-'}</td>
+                <td class="col-name">${staff.name || '-'}</td>
+                <td class="col-designation">${staff.designation || '-'}</td>
+                <td class="col-type">${staff.type || '-'}</td>
+                <td class="col-dept">${staff.dept || '-'}</td>
+                <td class="col-status">${staff.status || '-'}</td>
+                <td class="col-dob">${staff.dob || '-'}</td>
+                <td class="col-empid">${staff.empId || '-'}</td>
+                <td class="col-doe">${staff.doe || '-'}</td>
+                <td class="col-bank">${staff.bankAcct || '-'}</td>
+                <td class="col-pan">${staff.pan || '-'}</td>
+                <td class="col-aadhar">${staff.aadhar || '-'}</td>
+                <td class="col-phone">${staff.phone || '-'}</td>
+                <td class="col-email">${staff.email || '-'}</td>
+            </tr>
+        `;
+    });
+
+    tableHTML += `
+            </tbody>
+        </table>
+        <div class="staff-count-summary">
+            Showing ${filteredStaffData.length} of ${staffData.length} staff members
+        </div>
+    `;
+
+    container.innerHTML = tableHTML;
+}
+
+// Apply filters to staff table
+function applyStaffFilters() {
+    const typeFilter = document.getElementById('filterType').value;
+    const deptFilter = document.getElementById('filterDept').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+
+    filteredStaffData = staffData.filter(staff => {
+        let matches = true;
+
+        if (typeFilter && staff.type !== typeFilter) {
+            matches = false;
+        }
+
+        if (deptFilter && staff.dept !== deptFilter) {
+            matches = false;
+        }
+
+        if (statusFilter && staff.status !== statusFilter) {
+            matches = false;
+        }
+
+        return matches;
+    });
+
+    renderStaffTable();
+}
+
+// Reset all filters
+function resetStaffFilters() {
+    document.getElementById('filterType').value = '';
+    document.getElementById('filterDept').value = '';
+    document.getElementById('filterStatus').value = '';
+
+    filteredStaffData = [...staffData];
+    renderStaffTable();
 }

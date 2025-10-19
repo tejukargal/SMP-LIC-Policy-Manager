@@ -124,7 +124,7 @@
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <div class="stats-section" id="statsSection">
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" id="totalStaffCard">
                 <span class="stat-number" id="totalStaff">0</span>
                 <span class="stat-label" id="totalStaffLabel">Total Staff</span>
             </div>
@@ -414,6 +414,50 @@
             </div>
             <div class="modal-body">
                 <div id="totalPoliciesTableContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Staff Modal -->
+    <div id="totalStaffModal" class="modal">
+        <div class="modal-content total-staff-modal-content">
+            <div class="modal-header">
+                <h2>All Staff Details</h2>
+                <span class="close" id="closeTotalStaffModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="staff-filters">
+                    <div class="filter-group">
+                        <label for="filterType">Type:</label>
+                        <select id="filterType" class="filter-select">
+                            <option value="">All</option>
+                            <option value="TEACHING">Teaching</option>
+                            <option value="NON-TEACHING">Non-Teaching</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDept">Department:</label>
+                        <select id="filterDept" class="filter-select">
+                            <option value="">All</option>
+                            <option value="OFFICE">Office</option>
+                            <option value="ME">ME</option>
+                            <option value="CE">CE</option>
+                            <option value="EC">EC</option>
+                            <option value="CS">CS</option>
+                            <option value="SCIENCE">Science</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterStatus">Status:</label>
+                        <select id="filterStatus" class="filter-select">
+                            <option value="">All</option>
+                            <option value="IN SERVICE">In Service</option>
+                            <option value="RTRD">Retired</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary btn-reset-filters" id="resetFiltersBtn">Reset Filters</button>
+                </div>
+                <div id="totalStaffTableContainer"></div>
             </div>
         </div>
     </div>

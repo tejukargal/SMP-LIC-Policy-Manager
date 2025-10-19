@@ -1497,6 +1497,213 @@ header h1 {
     font-weight: 700;
 }
 
+/* Total Staff Modal */
+.total-staff-modal-content {
+    max-width: 98%;
+    width: 1800px;
+}
+
+.total-staff-modal-content .modal-body {
+    padding: 15px 20px;
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+/* Staff Filters */
+.staff-filters {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border-radius: 8px;
+    border: 2px solid #cbd5e1;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.filter-select {
+    padding: 8px 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background-color: white;
+    cursor: pointer;
+    min-width: 150px;
+    transition: all 0.3s ease;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.btn-reset-filters {
+    padding: 8px 20px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+/* Total Staff Table - Compact Design */
+.total-staff-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: var(--card-bg);
+    border: 2px solid #2563eb;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+    font-size: 0.7rem;
+}
+
+.total-staff-table thead {
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    border-bottom: 2px solid #1e40af;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.total-staff-table th {
+    padding: 8px 6px;
+    font-weight: 700;
+    color: white;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.total-staff-table td {
+    padding: 5px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Column-specific alignment and widths */
+.total-staff-table .col-sl {
+    text-align: right;
+    width: 3%;
+}
+
+.total-staff-table .col-name {
+    text-align: left;
+    width: 10%;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.total-staff-table .col-designation {
+    text-align: left;
+    width: 9%;
+}
+
+.total-staff-table .col-type {
+    text-align: left;
+    width: 7%;
+}
+
+.total-staff-table .col-dept {
+    text-align: left;
+    width: 5%;
+}
+
+.total-staff-table .col-status {
+    text-align: center;
+    width: 6%;
+}
+
+.total-staff-table .col-dob {
+    text-align: center;
+    width: 6%;
+}
+
+.total-staff-table .col-empid {
+    text-align: right;
+    width: 7%;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.total-staff-table .col-doe {
+    text-align: center;
+    width: 6%;
+}
+
+.total-staff-table .col-bank {
+    text-align: right;
+    width: 9%;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.total-staff-table .col-pan {
+    text-align: right;
+    width: 7%;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.total-staff-table .col-aadhar {
+    text-align: right;
+    width: 9%;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.total-staff-table .col-phone {
+    text-align: right;
+    width: 8%;
+    font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.total-staff-table .col-email {
+    text-align: left;
+    width: 8%;
+}
+
+/* Banded row colors for staff table */
+.total-staff-table tbody tr.even-row {
+    background-color: #f8fbff;
+}
+
+.total-staff-table tbody tr.odd-row {
+    background-color: #eff6ff;
+}
+
+.total-staff-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.total-staff-table tbody tr:hover {
+    background-color: #dbeafe !important;
+    box-shadow: inset 0 0 0 1px #93c5fd;
+}
+
+/* Staff count summary */
+.staff-count-summary {
+    margin-top: 15px;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    background: linear-gradient(135deg, #f0f4f8, #e5ecf4);
+    border-radius: 6px;
+    font-weight: 600;
+}
+
 /* Print Styles */
 @media print {
     .search-section,
