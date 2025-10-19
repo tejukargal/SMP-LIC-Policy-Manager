@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp list:*)",
+      "Bash(claude mcp get:*)",
+      "WebFetch(domain:docs.nile.app)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npm root:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(claude mcp remove:*)",
+      "mcp__nile-database__list-databases",
+      "mcp__nile-database__execute-sql",
+      "mcp__nile-database__get-connection-string",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "mcp__nile-database__list-resources",
+      "mcp__nile-database__read-resource",
+      "Bash(git init)",
+      "Bash(git remote add origin https://github.com/tejukargal/SMP-LIC-Policy-Manager.git)",
+      "Bash(git add .claude/ .gitignore README.md SETUP_GUIDE.md app.js index.html package-lock.json package.json server.js staff.csv styles.css)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

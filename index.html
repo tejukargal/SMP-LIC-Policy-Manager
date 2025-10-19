@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff LIC Records Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div>
+                    <h1>Staff LIC Records Management System</h1>
+                    <p class="subtitle">Manage LIC Policy Details for Staff Members</p>
+                </div>
+                <button class="hamburger-menu" id="hamburgerBtn">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Hamburger Menu Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h3>Menu</h3>
+                <button class="close-sidebar" id="closeSidebar">&times;</button>
+            </div>
+            <div class="sidebar-content">
+                <button class="menu-item" id="backupBtn">
+                    <span class="menu-icon">💾</span>
+                    <span>Backup Data</span>
+                </button>
+                <button class="menu-item" id="restoreBtn">
+                    <span class="menu-icon">📥</span>
+                    <span>Restore Data</span>
+                </button>
+                <button class="menu-item danger" id="deleteAllBtn">
+                    <span class="menu-icon">🗑️</span>
+                    <span>Delete All Data</span>
+                </button>
+            </div>
+        </div>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <div class="stats-section">
+            <div class="stat-card">
+                <span class="stat-number" id="totalStaff">0</span>
+                <span class="stat-label">Total Staff</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="staffWithLIC">0</span>
+                <span class="stat-label">Staff with LIC</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="totalPolicies">0</span>
+                <span class="stat-label">Total Policies</span>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Search by Name, Department, or Designation..."
+                    class="search-input"
+                >
+                <button class="btn-search" id="searchBtn">Search</button>
+                <button class="btn-clear" id="clearBtn">Clear</button>
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">All Staff</button>
+                <button class="filter-btn" data-filter="TEACHING">Teaching</button>
+                <button class="filter-btn" data-filter="NON-TEACHING">Non-Teaching</button>
+            </div>
+        </div>
+
+        <div class="staff-list" id="staffList">
+            <!-- Staff items will be dynamically loaded here -->
+        </div>
+    </div>
+
+    <!-- LIC Entry Modal -->
+    <div id="licModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Enter LIC Details</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="staff-info">
+                    <p><strong>Name:</strong> <span id="modalStaffName"></span></p>
+                    <p><strong>Department:</strong> <span id="modalStaffDept"></span></p>
+                    <p><strong>Designation:</strong> <span id="modalStaffDesignation"></span></p>
+                    <p><strong>Type:</strong> <span id="modalStaffType"></span></p>
+                </div>
+
+                <form id="licForm">
+                    <div class="policy-entries" id="policyEntries">
+                        <div class="policy-entry">
+                            <h3>Add New Policy Details</h3>
+                            <div class="policy-form-row">
+                                <div class="form-group">
+                                    <label for="policyNo1">Policy Number</label>
+                                    <input
+                                        type="text"
+                                        id="policyNo1"
+                                        name="policyNo[]"
+                                        class="uppercase-input"
+                                        required
+                                        autocomplete="off"
+                                    >
+                                </div>
+                                <div class="form-group">
+                                    <label for="premiumAmount1">Premium Amount (Rs.)</label>
+                                    <input
+                                        type="number"
+                                        id="premiumAmount1"
+                                        name="premiumAmount[]"
+                                        step="0.01"
+                                        min="0"
+                                        required
+                                        autocomplete="off"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="button" class="btn btn-secondary" id="addMorePolicy">
+                            + Add Another Policy
+                        </button>
+                    </div>
+                </form>
+
+                <div class="existing-policies" id="existingPolicies">
+                    <!-- Existing policies table will be shown here -->
+                </div>
+
+                <div class="button-group-fixed">
+                    <button type="submit" form="licForm" class="btn btn-primary" id="saveBtn">
+                        Save LIC Details
+                    </button>
+                    <button type="button" class="btn btn-cancel" id="cancelBtn">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Hidden file input for restore -->
+    <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
+
+    <!-- Edit Policy Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content edit-modal-content">
+            <div class="modal-header">
+                <h2>Edit Policy Details</h2>
+                <span class="close" id="closeEditModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="editPolicyId">
+                    <input type="hidden" id="editStaffSL">
+
+                    <div class="form-group">
+                        <label for="editPolicyNo">Policy Number</label>
+                        <input
+                            type="text"
+                            id="editPolicyNo"
+                            class="uppercase-input"
+                            required
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editPremiumAmount">Premium Amount (Rs.)</label>
+                        <input
+                            type="number"
+                            id="editPremiumAmount"
+                            step="0.01"
+                            min="0"
+                            required
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editMaturityDate">Maturity Date (dd/mm/yyyy)</label>
+                        <input
+                            type="text"
+                            id="editMaturityDate"
+                            placeholder="dd/mm/yyyy"
+                            maxlength="10"
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="button-group-fixed">
+                        <button type="submit" class="btn btn-primary">Update</button>
+                        <button type="button" class="btn btn-cancel" id="cancelEditBtn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
