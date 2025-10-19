@@ -1384,7 +1384,7 @@ header h1 {
 .total-policies-table th {
     padding: 8px 10px;
     font-weight: 700;
-    color: white;
+    color: white !important;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -1579,7 +1579,7 @@ header h1 {
 .total-staff-table th {
     padding: 8px 6px;
     font-weight: 700;
-    color: white;
+    color: white !important;
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
