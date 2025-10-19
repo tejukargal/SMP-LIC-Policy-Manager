@@ -38,6 +38,7 @@ app.get('/api/lic-records', async (req, res) => {
             SELECT
                 id,
                 staff_sl,
+                staff_emp_id,
                 staff_name,
                 staff_dept,
                 staff_designation,
@@ -141,10 +142,11 @@ app.post('/api/lic-records', async (req, res) => {
 
         policies.forEach((policy) => {
             placeholders.push(
-                `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7})`
+                `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8})`
             );
             values.push(
                 policy.staff_sl,
+                policy.staff_emp_id || policy.staff_sl,
                 policy.staff_name,
                 policy.staff_dept,
                 policy.staff_designation,
@@ -153,12 +155,13 @@ app.post('/api/lic-records', async (req, res) => {
                 policy.premium_amount || 0,
                 policy.maturity_date || null
             );
-            paramIndex += 8;
+            paramIndex += 9;
         });
 
         const insertQuery = `
             INSERT INTO staff_lic_records (
                 staff_sl,
+                staff_emp_id,
                 staff_name,
                 staff_dept,
                 staff_designation,
@@ -466,6 +469,427 @@ app.post('/api/delete-all', async (req, res) => {
             error: 'Failed to delete all data',
             details: error.message
         });
+    }
+});
+
+// Update staff CSV data
+app.post('/api/staff', async (req, res) => {
+    const fs = require('fs').promises;
+    const path = require('path');
+
+    try {
+        const { staffData } = req.body;
+
+        if (!staffData || !Array.isArray(staffData)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid staff data format'
+            });
+        }
+
+        // Convert staff data array to CSV format
+        const headers = ['Sl', 'Name', 'Designation', 'Type', 'Dept', 'Status', 'DOB', 'Emp ID', 'DOE', 'Bank Acct No', 'PAN', 'Aadhar', 'Phone', 'Mail ID'];
+        const csvLines = [headers.join(',')];
+
+        staffData.forEach(staff => {
+            const row = [
+                staff.sl || '',
+                staff.name || '',
+                staff.designation || '',
+                staff.type || '',
+                staff.dept || '',
+                staff.status || '',
+                staff.dob || '',
+                staff.empId || '',
+                staff.doe || '',
+                staff.bankAcct || '',
+                staff.pan || '',
+                staff.aadhar || '',
+                staff.phone || '',
+                staff.email || ''
+            ];
+            csvLines.push(row.join(','));
+        });
+
+        const csvContent = csvLines.join('\n');
+        const csvPath = path.join(__dirname, 'staff.csv');
+
+        await fs.writeFile(csvPath, csvContent, 'utf8');
+
+        res.json({
+            success: true,
+            message: `Successfully updated staff CSV with ${staffData.length} records`
+        });
+    } catch (error) {
+        console.error('Error updating staff CSV:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update staff CSV',
+            details: error.message
+        });
+    }
+});
+
+// Update staff_emp_id in policies when staff empId changes
+app.put('/api/lic-records/update-emp-id', async (req, res) => {
+    try {
+        const { oldEmpId, newEmpId } = req.body;
+
+        if (!oldEmpId || !newEmpId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Both oldEmpId and newEmpId are required'
+            });
+        }
+
+        const query = `
+            UPDATE staff_lic_records
+            SET staff_emp_id = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE staff_emp_id = $2
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [newEmpId, oldEmpId]);
+
+        res.json({
+            success: true,
+            message: `Successfully updated ${result.rows.length} policy records with new emp ID`,
+            count: result.rows.length
+        });
+    } catch (error) {
+        console.error('Error updating emp IDs:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update emp IDs',
+            details: error.message
+        });
+    }
+});
+
+// ==================== STAFF DATABASE ENDPOINTS ====================
+
+// Initialize staff table (run once)
+app.post('/api/staff/init-table', async (req, res) => {
+    try {
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS staff (
+                id SERIAL PRIMARY KEY,
+                emp_id VARCHAR(50) NOT NULL UNIQUE,
+                sl VARCHAR(10),
+                name VARCHAR(255) NOT NULL,
+                designation VARCHAR(100),
+                type VARCHAR(50),
+                dept VARCHAR(100),
+                status VARCHAR(50),
+                dob VARCHAR(20),
+                doe VARCHAR(20),
+                bank_acct VARCHAR(100),
+                pan VARCHAR(20),
+                aadhar VARCHAR(20),
+                phone VARCHAR(20),
+                email VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_staff_emp_id ON staff(emp_id);
+            CREATE INDEX IF NOT EXISTS idx_staff_name ON staff(name);
+        `;
+
+        await pool.query(createTableQuery);
+
+        res.json({
+            success: true,
+            message: 'Staff table initialized successfully'
+        });
+    } catch (error) {
+        console.error('Error initializing staff table:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to initialize staff table',
+            details: error.message
+        });
+    }
+});
+
+// Get all staff from database
+app.get('/api/staff-db', async (req, res) => {
+    try {
+        const query = `
+            SELECT
+                id,
+                emp_id,
+                sl,
+                name,
+                designation,
+                type,
+                dept,
+                status,
+                dob,
+                doe,
+                bank_acct,
+                pan,
+                aadhar,
+                phone,
+                email,
+                created_at,
+                updated_at
+            FROM staff
+            ORDER BY name ASC
+        `;
+
+        const result = await pool.query(query);
+
+        res.json({
+            success: true,
+            staff: result.rows,
+            count: result.rows.length
+        });
+    } catch (error) {
+        console.error('Error fetching staff from database:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch staff from database',
+            details: error.message
+        });
+    }
+});
+
+// Add new staff to database
+app.post('/api/staff-db', async (req, res) => {
+    try {
+        const { staff } = req.body;
+
+        if (!staff || !staff.emp_id || !staff.name) {
+            return res.status(400).json({
+                success: false,
+                error: 'emp_id and name are required'
+            });
+        }
+
+        const query = `
+            INSERT INTO staff (
+                emp_id, sl, name, designation, type, dept, status,
+                dob, doe, bank_acct, pan, aadhar, phone, email
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            RETURNING *
+        `;
+
+        const values = [
+            staff.emp_id,
+            staff.sl || null,
+            staff.name,
+            staff.designation || null,
+            staff.type || null,
+            staff.dept || null,
+            staff.status || null,
+            staff.dob || null,
+            staff.doe || null,
+            staff.bank_acct || null,
+            staff.pan || null,
+            staff.aadhar || null,
+            staff.phone || null,
+            staff.email || null
+        ];
+
+        const result = await pool.query(query, values);
+
+        res.status(201).json({
+            success: true,
+            message: 'Staff added successfully',
+            staff: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error adding staff:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to add staff',
+            details: error.message
+        });
+    }
+});
+
+// Update staff in database
+app.put('/api/staff-db/:emp_id', async (req, res) => {
+    try {
+        const { emp_id } = req.params;
+        const { staff } = req.body;
+
+        if (!staff) {
+            return res.status(400).json({
+                success: false,
+                error: 'Staff data is required'
+            });
+        }
+
+        const query = `
+            UPDATE staff
+            SET
+                sl = $1,
+                name = $2,
+                designation = $3,
+                type = $4,
+                dept = $5,
+                status = $6,
+                dob = $7,
+                doe = $8,
+                bank_acct = $9,
+                pan = $10,
+                aadhar = $11,
+                phone = $12,
+                email = $13,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE emp_id = $14
+            RETURNING *
+        `;
+
+        const values = [
+            staff.sl || null,
+            staff.name,
+            staff.designation || null,
+            staff.type || null,
+            staff.dept || null,
+            staff.status || null,
+            staff.dob || null,
+            staff.doe || null,
+            staff.bank_acct || null,
+            staff.pan || null,
+            staff.aadhar || null,
+            staff.phone || null,
+            staff.email || null,
+            emp_id
+        ];
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Staff not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Staff updated successfully',
+            staff: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error updating staff:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update staff',
+            details: error.message
+        });
+    }
+});
+
+// Delete staff from database
+app.delete('/api/staff-db/:emp_id', async (req, res) => {
+    try {
+        const { emp_id } = req.params;
+
+        const query = 'DELETE FROM staff WHERE emp_id = $1 RETURNING *';
+        const result = await pool.query(query, [emp_id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Staff not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Staff deleted successfully',
+            staff: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error deleting staff:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete staff',
+            details: error.message
+        });
+    }
+});
+
+// Migrate CSV data to database
+app.post('/api/staff/migrate-csv', async (req, res) => {
+    const client = await pool.connect();
+    const fs = require('fs').promises;
+    const path = require('path');
+
+    try {
+        const { staffData } = req.body;
+
+        if (!staffData || !Array.isArray(staffData)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid staff data format'
+            });
+        }
+
+        await client.query('BEGIN');
+
+        // Clear existing data
+        await client.query('DELETE FROM staff');
+
+        // Bulk insert staff data
+        if (staffData.length > 0) {
+            const values = [];
+            const placeholders = [];
+            let paramIndex = 1;
+
+            staffData.forEach((staff) => {
+                placeholders.push(
+                    `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12}, $${paramIndex + 13})`
+                );
+                values.push(
+                    staff.empId,
+                    staff.sl || null,
+                    staff.name,
+                    staff.designation || null,
+                    staff.type || null,
+                    staff.dept || null,
+                    staff.status || null,
+                    staff.dob || null,
+                    staff.doe || null,
+                    staff.bankAcct || null,
+                    staff.pan || null,
+                    staff.aadhar || null,
+                    staff.phone || null,
+                    staff.email || null
+                );
+                paramIndex += 14;
+            });
+
+            const insertQuery = `
+                INSERT INTO staff (
+                    emp_id, sl, name, designation, type, dept, status,
+                    dob, doe, bank_acct, pan, aadhar, phone, email
+                ) VALUES ${placeholders.join(', ')}
+            `;
+
+            await client.query(insertQuery, values);
+        }
+
+        await client.query('COMMIT');
+
+        res.json({
+            success: true,
+            message: `Successfully migrated ${staffData.length} staff records to database`
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error migrating CSV to database:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to migrate CSV to database',
+            details: error.message
+        });
+    } finally {
+        client.release();
     }
 });
 

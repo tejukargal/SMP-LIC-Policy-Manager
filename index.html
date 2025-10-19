@@ -22,7 +22,7 @@
                     <button class="login-option-btn" id="userLoginBtn">
                         <div class="option-icon">👤</div>
                         <div class="option-title">Login as User</div>
-                        <div class="option-desc">View-only access to records</div>
+                        <div class="option-desc">View your LIC records</div>
                     </button>
 
                     <button class="login-option-btn" id="adminLoginBtn">
@@ -30,6 +30,24 @@
                         <div class="option-title">Login as Admin</div>
                         <div class="option-desc">Full access with edit privileges</div>
                     </button>
+                </div>
+
+                <!-- User Login Form (Hidden by default) -->
+                <div id="userLoginForm" class="admin-login-form" style="display: none;">
+                    <h3>User Login</h3>
+                    <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px;">
+                        Enter your Employee ID, Phone Number, or last 8 digits of Aadhar
+                    </p>
+                    <form id="userAuthForm">
+                        <div class="form-group">
+                            <label for="userCredential">Employee ID / Phone / Aadhar (last 8 digits)</label>
+                            <input type="text" id="userCredential" required autocomplete="off" placeholder="e.g., 100156088 or 9740553884 or 05242999">
+                        </div>
+                        <div class="login-buttons">
+                            <button type="submit" class="btn btn-primary">Login</button>
+                            <button type="button" class="btn btn-cancel" id="backToOptionsFromUser">Back</button>
+                        </div>
+                    </form>
                 </div>
 
                 <!-- Admin Login Form (Hidden by default) -->
@@ -81,6 +99,14 @@
                 <button class="close-sidebar" id="closeSidebar">&times;</button>
             </div>
             <div class="sidebar-content">
+                <button class="menu-item" id="addStaffBtn">
+                    <span class="menu-icon">👤+</span>
+                    <span>Add New Staff</span>
+                </button>
+                <button class="menu-item" id="migrateToDbBtn">
+                    <span class="menu-icon">🔄</span>
+                    <span>Migrate CSV to Database</span>
+                </button>
                 <button class="menu-item" id="backupBtn">
                     <span class="menu-icon">💾</span>
                     <span>Backup Data</span>
@@ -97,18 +123,18 @@
         </div>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-        <div class="stats-section">
+        <div class="stats-section" id="statsSection">
             <div class="stat-card">
                 <span class="stat-number" id="totalStaff">0</span>
-                <span class="stat-label">Total Staff</span>
+                <span class="stat-label" id="totalStaffLabel">Total Staff</span>
             </div>
             <div class="stat-card">
                 <span class="stat-number" id="staffWithLIC">0</span>
-                <span class="stat-label">Staff with LIC</span>
+                <span class="stat-label" id="staffWithLICLabel">Staff with LIC</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" id="totalPoliciesCard">
                 <span class="stat-number" id="totalPolicies">0</span>
-                <span class="stat-label">Total Policies</span>
+                <span class="stat-label" id="totalPoliciesLabel">Total Policies</span>
             </div>
         </div>
 
@@ -117,7 +143,7 @@
                 <input
                     type="text"
                     id="searchInput"
-                    placeholder="Search by Name, Department, or Designation..."
+                    placeholder="Search by Name, Emp ID, Aadhar (last 8 digits), Department, or Designation..."
                     class="search-input"
                 >
                 <button class="btn-search" id="searchBtn">Search</button>
@@ -143,11 +169,8 @@
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="staff-info">
-                    <p><strong>Name:</strong> <span id="modalStaffName"></span></p>
-                    <p><strong>Department:</strong> <span id="modalStaffDept"></span></p>
-                    <p><strong>Designation:</strong> <span id="modalStaffDesignation"></span></p>
-                    <p><strong>Type:</strong> <span id="modalStaffType"></span></p>
+                <div class="staff-info-detailed" id="staffInfoDetailed">
+                    <!-- Full staff details will be populated here -->
                 </div>
 
                 <form id="licForm">
@@ -217,6 +240,116 @@
     <!-- Hidden file input for restore -->
     <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
 
+    <!-- Staff Management Modal -->
+    <div id="staffModal" class="modal">
+        <div class="modal-content staff-modal-content">
+            <div class="modal-header">
+                <h2 id="staffModalTitle">Add New Staff</h2>
+                <span class="close" id="closeStaffModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="staffForm">
+                    <input type="hidden" id="staffMode" value="add">
+                    <input type="hidden" id="staffOriginalEmpId">
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffName">Name <span class="required">*</span></label>
+                            <input type="text" id="staffName" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="staffEmpId">Employee ID <span class="required">*</span></label>
+                            <input type="text" id="staffEmpId" required autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffDesignation">Designation <span class="required">*</span></label>
+                            <input type="text" id="staffDesignation" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="staffDept">Department <span class="required">*</span></label>
+                            <select id="staffDept" required>
+                                <option value="">Select Department</option>
+                                <option value="OFFICE">OFFICE</option>
+                                <option value="ME">ME</option>
+                                <option value="CE">CE</option>
+                                <option value="EC">EC</option>
+                                <option value="CS">CS</option>
+                                <option value="SCIENCE">SCIENCE</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffType">Type <span class="required">*</span></label>
+                            <select id="staffType" required>
+                                <option value="">Select Type</option>
+                                <option value="TEACHING">TEACHING</option>
+                                <option value="NON-TEACHING">NON-TEACHING</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="staffStatus">Status <span class="required">*</span></label>
+                            <select id="staffStatus" required>
+                                <option value="">Select Status</option>
+                                <option value="IN SERVICE">IN SERVICE</option>
+                                <option value="RTRD">RETIRED</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffDOB">Date of Birth (dd-mm-yy)</label>
+                            <input type="text" id="staffDOB" placeholder="dd-mm-yy" maxlength="8" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="staffDOE">Date of Engagement (dd-mm-yy)</label>
+                            <input type="text" id="staffDOE" placeholder="dd-mm-yy" maxlength="10" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffPhone">Phone Number</label>
+                            <input type="text" id="staffPhone" maxlength="10" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="staffEmail">Email</label>
+                            <input type="email" id="staffEmail" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="staffPAN">PAN</label>
+                            <input type="text" id="staffPAN" maxlength="10" class="uppercase-input" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="staffAadhar">Aadhar (12 digits with spaces)</label>
+                            <input type="text" id="staffAadhar" placeholder="XXXX XXXX XXXX" maxlength="14" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="staffBankAcct">Bank Account Number</label>
+                            <input type="text" id="staffBankAcct" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="button-group-fixed">
+                        <button type="submit" class="btn btn-primary" id="saveStaffBtn">Save Staff</button>
+                        <button type="button" class="btn btn-cancel" id="cancelStaffBtn">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Policy Modal -->
     <div id="editModal" class="modal">
         <div class="modal-content edit-modal-content">
@@ -227,7 +360,7 @@
             <div class="modal-body">
                 <form id="editForm">
                     <input type="hidden" id="editPolicyId">
-                    <input type="hidden" id="editStaffSL">
+                    <input type="hidden" id="editStaffEmpId">
 
                     <div class="form-group">
                         <label for="editPolicyNo">Policy Number</label>
@@ -268,6 +401,19 @@
                         <button type="button" class="btn btn-cancel" id="cancelEditBtn">Cancel</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Policies Modal -->
+    <div id="totalPoliciesModal" class="modal">
+        <div class="modal-content total-policies-modal-content">
+            <div class="modal-header">
+                <h2>All Policies Overview</h2>
+                <span class="close" id="closeTotalPoliciesModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="totalPoliciesTableContainer"></div>
             </div>
         </div>
     </div>
