@@ -21,12 +21,12 @@ const isGitHubPages = hostname.includes('github.io');
 
 // API Base URL configuration
 // - LOCAL: Use localhost backend
-// - PRODUCTION: Use deployed backend from config
+// - PRODUCTION: Use same domain (for Netlify Functions) or deployed backend
 const API_BASE_URL = isLocalhost
     ? 'http://localhost:3000'
-    : (typeof DB_CONFIG !== 'undefined' && DB_CONFIG.PRODUCTION_API_URL
+    : (typeof DB_CONFIG !== 'undefined' && DB_CONFIG.PRODUCTION_API_URL && DB_CONFIG.PRODUCTION_API_URL !== ''
         ? DB_CONFIG.PRODUCTION_API_URL
-        : '');
+        : window.location.origin); // Same domain for Netlify
 
 console.log(`🔍 Environment Detection:`);
 console.log(`  Hostname: ${hostname}`);
