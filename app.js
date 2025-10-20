@@ -255,8 +255,11 @@ function setupLoginListeners() {
         const username = document.getElementById('adminUsername').value;
         const password = document.getElementById('adminPassword').value;
 
-        // Validate credentials
-        if (username === 'admin' && password === 'teju2015') {
+        // Validate credentials - two admin accounts
+        const isValidAdmin = (username === 'admin' && password === 'teju2015') ||
+                             (username === 'admin' && password === '308smpoffice');
+
+        if (isValidAdmin) {
             userType = 'admin';
             isAuthenticated = true;
             loggedInUserData = null;
@@ -393,9 +396,11 @@ function setupEventListeners() {
     // Staff modal
     const closeStaffModal = document.getElementById('closeStaffModal');
     const cancelStaffBtn = document.getElementById('cancelStaffBtn');
+    const deleteStaffBtn = document.getElementById('deleteStaffBtn');
     const staffForm = document.getElementById('staffForm');
     closeStaffModal.addEventListener('click', closeStaffModalFunc);
     cancelStaffBtn.addEventListener('click', closeStaffModalFunc);
+    deleteStaffBtn.addEventListener('click', handleDeleteStaff);
     staffForm.addEventListener('submit', saveStaff);
 
     // Edit modal
@@ -1648,6 +1653,10 @@ function openAddStaffModal() {
     document.getElementById('staffModalTitle').textContent = 'Add New Staff';
     document.getElementById('staffMode').value = 'add';
     document.getElementById('staffForm').reset();
+
+    // Hide delete button in add mode
+    document.getElementById('deleteStaffBtn').style.display = 'none';
+
     document.getElementById('staffModal').style.display = 'block';
     closeSidebarMenu();
 
@@ -1684,6 +1693,9 @@ function editStaff(empId) {
     document.getElementById('staffAadhar').value = staff.aadhar || '';
     document.getElementById('staffBankAcct').value = staff.bankAcct || '';
 
+    // Show delete button in edit mode
+    document.getElementById('deleteStaffBtn').style.display = 'inline-block';
+
     document.getElementById('staffModal').style.display = 'block';
 
     // Focus first input
@@ -1696,6 +1708,8 @@ function editStaff(empId) {
 function closeStaffModalFunc() {
     document.getElementById('staffModal').style.display = 'none';
     document.getElementById('staffForm').reset();
+    // Hide delete button when closing
+    document.getElementById('deleteStaffBtn').style.display = 'none';
 }
 
 // Save staff (add or edit)
@@ -1812,6 +1826,96 @@ async function saveStaff(e) {
     } catch (error) {
         showToast('Error saving staff: ' + error.message, 'error');
         console.error('Error:', error);
+    }
+}
+
+// Handle delete staff
+async function handleDeleteStaff() {
+    const empId = document.getElementById('staffOriginalEmpId').value;
+    const staff = staffData.find(s => s.empId === empId);
+
+    if (!staff) {
+        showToast('Staff not found', 'error');
+        return;
+    }
+
+    // Ask for password
+    const password = prompt(`Enter password to delete staff "${staff.name}":`);
+
+    if (!password) {
+        return; // User cancelled
+    }
+
+    // Verify password
+    if (password !== 'teju2015') {
+        showToast('Incorrect password! Staff not deleted.', 'error');
+        return;
+    }
+
+    // Confirm deletion
+    const confirmed = confirm(
+        `⚠️ WARNING: This will permanently delete staff member:\n\n` +
+        `Name: ${staff.name}\n` +
+        `Employee ID: ${staff.empId}\n` +
+        `Department: ${staff.dept}\n\n` +
+        `This action cannot be undone.\n\n` +
+        `Are you absolutely sure?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        showLoading(true);
+
+        // Check if staff has LIC records
+        const hasLICRecords = licRecords[empId] && licRecords[empId].length > 0;
+
+        if (hasLICRecords) {
+            const deleteLICToo = confirm(
+                `This staff member has ${licRecords[empId].length} LIC record(s).\n\n` +
+                `Do you want to delete the LIC records as well?\n\n` +
+                `Click OK to delete both staff and LIC records.\n` +
+                `Click Cancel to keep LIC records.`
+            );
+
+            if (deleteLICToo) {
+                // Delete all LIC records for this staff
+                for (const policy of licRecords[empId]) {
+                    await fetch(`${API_BASE_URL}/api/lic-records/${policy.id}`, {
+                        method: 'DELETE'
+                    });
+                }
+                delete licRecords[empId];
+            }
+        }
+
+        // Delete staff from database
+        const response = await fetch(`${API_BASE_URL}/api/staff-db/${empId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showToast(`Staff "${staff.name}" deleted successfully!`, 'success');
+
+            // Close modal
+            closeStaffModalFunc();
+
+            // Reload staff data
+            await loadCSV();
+            displayStaff();
+            updateStats();
+        } else {
+            throw new Error(result.error || 'Failed to delete staff');
+        }
+    } catch (error) {
+        showToast('Error deleting staff: ' + error.message, 'error');
+        console.error('Error:', error);
+    } finally {
+        showLoading(false);
     }
 }
 

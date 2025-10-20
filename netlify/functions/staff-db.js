@@ -175,6 +175,36 @@ exports.handler = async (event, context) => {
             };
         }
 
+        // DELETE - Delete staff
+        if (event.httpMethod === 'DELETE') {
+            const pathParts = event.path.split('/');
+            const emp_id = pathParts[pathParts.length - 1];
+
+            const query = 'DELETE FROM staff WHERE emp_id = $1 RETURNING *';
+            const result = await pool.query(query, [emp_id]);
+
+            if (result.rows.length === 0) {
+                return {
+                    statusCode: 404,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Staff not found'
+                    })
+                };
+            }
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    success: true,
+                    message: 'Staff deleted successfully',
+                    staff: result.rows[0]
+                })
+            };
+        }
+
         // Method not allowed
         return {
             statusCode: 405,

@@ -624,6 +624,16 @@ header h1 {
     background-color: #d1d5db;
 }
 
+.btn-delete {
+    background-color: #ef4444;
+    color: white;
+}
+
+.btn-delete:hover {
+    background-color: #dc2626;
+    transform: translateY(-2px);
+}
+
 .btn-view {
     background-color: #10b981;
     color: white;
