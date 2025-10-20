@@ -162,6 +162,7 @@ function setupLoginListeners() {
     const backToOptionsBtn = document.getElementById('backToOptionsBtn');
     const backToOptionsFromUser = document.getElementById('backToOptionsFromUser');
     const logoutBtn = document.getElementById('logoutBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
 
     // User login (show form)
     userLoginBtn.addEventListener('click', () => {
@@ -287,6 +288,30 @@ function setupLoginListeners() {
             document.getElementById('adminLoginForm').style.display = 'none';
             document.getElementById('userAuthForm').reset();
             document.getElementById('adminAuthForm').reset();
+        }
+    });
+
+    // Refresh data
+    refreshBtn.addEventListener('click', async () => {
+        try {
+            showLoading(true);
+
+            // Reload staff and LIC records from database
+            await Promise.all([
+                loadCSV(),
+                fetchLICRecords()
+            ]);
+
+            // Update display
+            displayStaff();
+            updateStats();
+
+            showToast('Data refreshed successfully!', 'success');
+        } catch (error) {
+            showToast('Error refreshing data: ' + error.message, 'error');
+            console.error('Error refreshing data:', error);
+        } finally {
+            showLoading(false);
         }
     });
 }

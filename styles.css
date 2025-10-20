@@ -177,6 +177,33 @@ header {
     opacity: 0.95;
 }
 
+.btn-refresh {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: white;
+    border: 2px solid rgba(16, 185, 129, 0.4);
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-refresh:hover {
+    background-color: rgba(16, 185, 129, 0.3);
+    border-color: rgba(16, 185, 129, 0.6);
+    transform: translateY(-2px);
+}
+
+.btn-refresh:active {
+    transform: translateY(0) rotate(180deg);
+    transition: transform 0.5s ease;
+}
+
 .btn-logout {
     background-color: rgba(255, 255, 255, 0.2);
     color: white;
