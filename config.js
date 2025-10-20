@@ -1,21 +1,19 @@
-// Database configuration
-// NOTE: Direct browser-to-database connection is NOT possible due to CORS restrictions
-// Nile's API doesn't allow direct browser access for security reasons
+// Database configuration for Netlify deployment
 //
-// DEPLOYMENT SETUP:
-// 1. Deploy server.js to Railway/Render/Vercel
-// 2. Update PRODUCTION_API_URL below with your deployed backend URL
-// 3. Commit and push to GitHub
+// NETLIFY DEPLOYMENT:
+// Netlify Functions are served from the same domain as your site.
+// The functions are accessible at: /.netlify/functions/function-name
+// Or via the /api/ redirect: /api/function-name
 //
-// Example: If you deploy to Railway and get: https://smp-lic-manager.railway.app
-// Then set: PRODUCTION_API_URL = 'https://smp-lic-manager.railway.app'
+// No separate backend URL needed - everything is on Netlify!
 
 const DB_CONFIG = {
-    // Production backend URL (deployed server.js)
-    // REPLACE THIS with your Railway/Render/Vercel URL after deployment
-    PRODUCTION_API_URL: 'https://your-deployed-backend.railway.app',  // UPDATE THIS!
+    // Production backend URL
+    // For Netlify: Leave empty - functions are on same domain
+    // netlify.toml redirects /api/* to /.netlify/functions/*
+    PRODUCTION_API_URL: '',  // Empty for Netlify (same domain)
 
-    // For reference only (not used in browser, kept for documentation)
+    // For reference only
     workspaceSlug: 'thejaraj',
     database: 'tejuDB'
 };
