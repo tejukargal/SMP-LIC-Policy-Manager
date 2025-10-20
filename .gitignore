@@ -6,9 +6,6 @@
 # MCP configuration (contains API keys)
 .mcp.json
 
-# Database configuration (contains API keys)
-config.js
-
 # Node modules
 node_modules/
 npm-debug.log*
