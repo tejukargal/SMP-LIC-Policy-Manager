@@ -18,7 +18,15 @@ const isLocalhost = hostname === 'localhost' ||
                      hostname.endsWith('.local');       // Local network
 
 const isGitHubPages = hostname.includes('github.io');
-const API_BASE_URL = isLocalhost ? 'http://localhost:3000' : '';
+
+// API Base URL configuration
+// - LOCAL: Use localhost backend
+// - PRODUCTION: Use deployed backend from config
+const API_BASE_URL = isLocalhost
+    ? 'http://localhost:3000'
+    : (typeof DB_CONFIG !== 'undefined' && DB_CONFIG.PRODUCTION_API_URL
+        ? DB_CONFIG.PRODUCTION_API_URL
+        : '');
 
 console.log(`🔍 Environment Detection:`);
 console.log(`  Hostname: ${hostname}`);
@@ -26,7 +34,8 @@ console.log(`  Protocol: ${window.location.protocol}`);
 console.log(`  Full URL: ${window.location.href}`);
 console.log(`  Is Localhost: ${isLocalhost}`);
 console.log(`  Is GitHub Pages: ${isGitHubPages}`);
-console.log(`  Mode: ${isLocalhost ? '🏠 LOCAL (using backend server at localhost:3000)' : '☁️ PRODUCTION (direct database connection)'}`);
+console.log(`  API Base URL: ${API_BASE_URL || '(not configured)'}`);
+console.log(`  Mode: ${isLocalhost ? '🏠 LOCAL (using local backend)' : '☁️ PRODUCTION (using deployed backend)'}`);
 
 // Database helper function for direct SQL queries via Nile HTTP API (Production only)
 async function executeSQL(query, params = []) {
@@ -494,45 +503,16 @@ function setupEventListeners() {
 // Load staff data - try database first, fallback to CSV
 async function loadCSV() {
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const dbResponse = await fetch(`${API_BASE_URL}/api/staff-db`, {
-                cache: 'no-cache'
-            });
+        // Both LOCAL and PRODUCTION use backend API (just different URLs)
+        const dbResponse = await fetch(`${API_BASE_URL}/api/staff-db`, {
+            cache: 'no-cache'
+        });
 
-            if (dbResponse.ok) {
-                const result = await dbResponse.json();
-                if (result.success && result.staff && result.staff.length > 0) {
-                    // Convert database format to app format
-                    staffData = result.staff.map(s => ({
-                        sl: s.sl,
-                        name: s.name,
-                        designation: s.designation,
-                        type: s.type,
-                        dept: s.dept,
-                        status: s.status,
-                        dob: s.dob,
-                        empId: s.emp_id,
-                        doe: s.doe,
-                        bankAcct: s.bank_acct,
-                        pan: s.pan,
-                        aadhar: s.aadhar,
-                        phone: s.phone,
-                        email: s.email
-                    }));
-                    console.log('✅ Staff data loaded from database (via server):', staffData.length, 'records');
-                    return true;
-                }
-            }
-            throw new Error('Failed to load staff data from server');
-        } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `SELECT sl, name, designation, type, dept, status, dob, emp_id, doe, bank_acct, pan, aadhar, phone, email FROM staff ORDER BY sl`;
-            const result = await executeSQL(query);
-
-            if (result.success && result.rows && result.rows.length > 0) {
+        if (dbResponse.ok) {
+            const result = await dbResponse.json();
+            if (result.success && result.staff && result.staff.length > 0) {
                 // Convert database format to app format
-                staffData = result.rows.map(s => ({
+                staffData = result.staff.map(s => ({
                     sl: s.sl,
                     name: s.name,
                     designation: s.designation,
@@ -548,12 +528,11 @@ async function loadCSV() {
                     phone: s.phone,
                     email: s.email
                 }));
-                console.log('✅ Staff data loaded from database (direct):', staffData.length, 'records');
+                console.log('✅ Staff data loaded from backend:', staffData.length, 'records');
                 return true;
-            } else {
-                throw new Error('No staff data found in database');
             }
         }
+        throw new Error('Failed to load staff data from backend');
     } catch (error) {
         showToast('Error loading staff data: ' + error.message, 'error');
         console.error('Error loading staff data:', error);
@@ -1559,54 +1538,31 @@ async function deletePolicy(policyId, policyNo) {
 // Fetch LIC records from database
 async function fetchLICRecords() {
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
-                cache: 'no-cache'
-            });
+        // Both LOCAL and PRODUCTION use backend API (just different URLs)
+        const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
+            cache: 'no-cache'
+        });
 
-            if (!response.ok) {
-                throw new Error('Failed to fetch LIC records');
-            }
-
-            const result = await response.json();
-
-            if (result.success) {
-                // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
-                licRecords = {};
-                result.records.forEach(record => {
-                    const key = record.staff_emp_id || record.staff_sl;
-                    if (!licRecords[key]) {
-                        licRecords[key] = [];
-                    }
-                    licRecords[key].push(record);
-                });
-                return true;
-            }
-            return false;
-        } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `SELECT
-                id, staff_sl, staff_emp_id, staff_name, staff_dept, staff_designation,
-                staff_type, policy_no, premium_amount, maturity_date, created_at, updated_at
-                FROM staff_lic_records
-                ORDER BY staff_emp_id, created_at`;
-            const result = await executeSQL(query);
-
-            if (result.success && result.rows) {
-                // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
-                licRecords = {};
-                result.rows.forEach(record => {
-                    const key = record.staff_emp_id || record.staff_sl;
-                    if (!licRecords[key]) {
-                        licRecords[key] = [];
-                    }
-                    licRecords[key].push(record);
-                });
-                return true;
-            }
-            return false;
+        if (!response.ok) {
+            throw new Error('Failed to fetch LIC records');
         }
+
+        const result = await response.json();
+
+        if (result.success) {
+            // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
+            licRecords = {};
+            result.records.forEach(record => {
+                const key = record.staff_emp_id || record.staff_sl;
+                if (!licRecords[key]) {
+                    licRecords[key] = [];
+                }
+                licRecords[key].push(record);
+            });
+            console.log('✅ LIC records loaded from backend:', result.records.length, 'records');
+            return true;
+        }
+        return false;
     } catch (error) {
         console.error('Error fetching LIC records:', error);
         // Don't show error toast here as it's not critical for initial load
