@@ -1,26 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude mcp list:*)",
-      "Bash(claude mcp get:*)",
-      "WebFetch(domain:docs.nile.app)",
-      "WebSearch",
-      "WebFetch(domain:github.com)",
-      "Bash(npm root:*)",
-      "Bash(claude mcp add:*)",
-      "Bash(claude mcp remove:*)",
-      "mcp__nile-database__list-databases",
-      "mcp__nile-database__execute-sql",
-      "mcp__nile-database__get-connection-string",
-      "Bash(npm install:*)",
-      "Bash(curl:*)",
-      "Bash(taskkill:*)",
-      "mcp__nile-database__list-resources",
-      "mcp__nile-database__read-resource",
-      "Bash(git init)",
-      "Bash(git remote add origin https://github.com/tejukargal/SMP-LIC-Policy-Manager.git)",
-      "Bash(git add .claude/ .gitignore README.md SETUP_GUIDE.md app.js index.html package-lock.json package.json server.js staff.csv styles.css)"
-    ]
+      "Bash(git add netlify/ netlify.toml config.js NETLIFY_DEPLOYMENT.md)",
+      "Bash(netlify status)",
+      "Bash(netlify init --manual)",
+      "Bash(netlify sites:create --name smp-lic-manager)",
+      "Bash(git commit -m \"Fix API_BASE_URL for Netlify deployment\n\n- Use window.location.origin when PRODUCTION_API_URL is empty\n- This allows Netlify Functions to work on same domain\n- API calls will now go to https://smpstafflicmanager.netlify.app/api/*\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\")",
+      "Bash(netlify env:set DATABASE_URL \"postgres://0199fcf8-7f48-70bc-b823-9c7a5b79418f:708465c1-d7cc-4768-9699-e6e98a60a1b5@us-west-2.db.thenile.dev:5432/tejuDB\")",
+      "Bash(netlify link --name smpstafflicmanager)",
+      "Bash(netlify deploy --prod)",
+      "Bash(netlify env:list)",
+      "Bash(git add app.js)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix Netlify Functions: Use backend API for all operations\n\n- Changed all database operations to use backend API instead of direct DB access\n- Removed unused executeSQL function and Nile HTTP API logic\n- Updated updatePolicy, deletePolicy, handleBackup, handleRestore, handleDeleteAll\n- Updated updatePolicyStaffEmpId to use API endpoint\n- All operations now work correctly on Netlify with serverless functions\n- Frontend always uses /api/* endpoints (redirected to /.netlify/functions/*)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(cat .gitignore)",
+      "Bash(git rm GITHUB_PAGES_SETUP.md)",
+      "Bash(git add -A)"
+    ],
+    "deny": [],
+    "ask": []
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [

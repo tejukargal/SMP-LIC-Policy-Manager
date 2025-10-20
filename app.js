@@ -1714,22 +1714,56 @@ async function saveStaff(e) {
     }
 
     try {
+        // Convert to backend format
+        const staffForBackend = {
+            emp_id: staffObj.empId,
+            sl: staffObj.sl,
+            name: staffObj.name,
+            designation: staffObj.designation,
+            type: staffObj.type,
+            dept: staffObj.dept,
+            status: staffObj.status,
+            dob: staffObj.dob,
+            doe: staffObj.doe,
+            bank_acct: staffObj.bankAcct,
+            pan: staffObj.pan,
+            aadhar: staffObj.aadhar,
+            phone: staffObj.phone,
+            email: staffObj.email
+        };
+
         if (mode === 'add') {
-            // Add new staff
-            staffData.push(staffObj);
-            staffData.sort((a, b) => a.name.localeCompare(b.name));
+            // Add new staff via backend API
+            const response = await fetch(`${API_BASE_URL}/api/staff-db`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ staff: staffForBackend })
+            });
 
-            // Save to CSV (we'll need to implement server endpoint for this)
-            await updateStaffCSV();
+            const result = await response.json();
 
-            showToast('Staff added successfully!', 'success');
+            if (response.ok) {
+                // Reload staff data from server to get fresh alphabetically sorted list
+                await loadCSV();
+                showToast('Staff added successfully!', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to add staff');
+            }
         } else {
-            // Edit existing staff
-            const index = staffData.findIndex(s => s.empId == originalEmpId);
-            if (index !== -1) {
-                staffData[index] = staffObj;
-                staffData.sort((a, b) => a.name.localeCompare(b.name));
+            // Update existing staff via backend API
+            const response = await fetch(`${API_BASE_URL}/api/staff-db/${originalEmpId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ staff: staffForBackend })
+            });
 
+            const result = await response.json();
+
+            if (response.ok) {
                 // If empId changed, update LIC records mapping
                 if (originalEmpId !== staffObj.empId && licRecords[originalEmpId]) {
                     licRecords[staffObj.empId] = licRecords[originalEmpId];
@@ -1739,10 +1773,11 @@ async function saveStaff(e) {
                     await updatePolicyStaffEmpId(originalEmpId, staffObj.empId);
                 }
 
-                // Save to CSV
-                await updateStaffCSV();
-
+                // Reload staff data from server to get fresh alphabetically sorted list
+                await loadCSV();
                 showToast('Staff updated successfully!', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to update staff');
             }
         }
 
@@ -1752,20 +1787,6 @@ async function saveStaff(e) {
     } catch (error) {
         showToast('Error saving staff: ' + error.message, 'error');
         console.error('Error:', error);
-    }
-}
-
-// Update staff in database
-async function updateStaffCSV() {
-    try {
-        // Note: This function updates all staff data - should be optimized in production
-        // For now, we'll just log success since individual staff updates happen via the staff edit modal
-        console.log('Staff data updated in memory. Individual database updates happen on save.');
-        return true;
-    } catch (error) {
-        console.error('Error updating staff:', error);
-        showToast('Error updating staff data', 'warning');
-        return false;
     }
 }
 
