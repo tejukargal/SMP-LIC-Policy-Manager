@@ -8,7 +8,13 @@ let userType = null; // 'user' or 'admin'
 let isAuthenticated = false;
 let loggedInUserData = null; // Store logged-in user's staff data
 
-// Database helper function for direct SQL queries via Nile HTTP API
+// Detect environment: localhost uses Node.js backend, production uses direct database
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = isLocalhost ? 'http://localhost:3000' : '';
+
+console.log(`Running in ${isLocalhost ? 'LOCAL' : 'PRODUCTION'} mode`);
+
+// Database helper function for direct SQL queries via Nile HTTP API (Production only)
 async function executeSQL(query, params = []) {
     try {
         const url = `https://us-west-2.api.thenile.dev/databases/${DB_CONFIG.database}/query`;
@@ -458,32 +464,65 @@ function setupEventListeners() {
 // Load staff data - try database first, fallback to CSV
 async function loadCSV() {
     try {
-        // Try loading from database first
-        const query = `SELECT sl, name, designation, type, dept, status, dob, emp_id, doe, bank_acct, pan, aadhar, phone, email FROM staff ORDER BY sl`;
-        const result = await executeSQL(query);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const dbResponse = await fetch(`${API_BASE_URL}/api/staff-db`, {
+                cache: 'no-cache'
+            });
 
-        if (result.success && result.rows && result.rows.length > 0) {
-            // Convert database format to app format
-            staffData = result.rows.map(s => ({
-                sl: s.sl,
-                name: s.name,
-                designation: s.designation,
-                type: s.type,
-                dept: s.dept,
-                status: s.status,
-                dob: s.dob,
-                empId: s.emp_id,
-                doe: s.doe,
-                bankAcct: s.bank_acct,
-                pan: s.pan,
-                aadhar: s.aadhar,
-                phone: s.phone,
-                email: s.email
-            }));
-            console.log('✅ Staff data loaded from database:', staffData.length, 'records');
-            return true;
+            if (dbResponse.ok) {
+                const result = await dbResponse.json();
+                if (result.success && result.staff && result.staff.length > 0) {
+                    // Convert database format to app format
+                    staffData = result.staff.map(s => ({
+                        sl: s.sl,
+                        name: s.name,
+                        designation: s.designation,
+                        type: s.type,
+                        dept: s.dept,
+                        status: s.status,
+                        dob: s.dob,
+                        empId: s.emp_id,
+                        doe: s.doe,
+                        bankAcct: s.bank_acct,
+                        pan: s.pan,
+                        aadhar: s.aadhar,
+                        phone: s.phone,
+                        email: s.email
+                    }));
+                    console.log('✅ Staff data loaded from database (via server):', staffData.length, 'records');
+                    return true;
+                }
+            }
+            throw new Error('Failed to load staff data from server');
         } else {
-            throw new Error('No staff data found in database');
+            // PRODUCTION MODE: Direct database access
+            const query = `SELECT sl, name, designation, type, dept, status, dob, emp_id, doe, bank_acct, pan, aadhar, phone, email FROM staff ORDER BY sl`;
+            const result = await executeSQL(query);
+
+            if (result.success && result.rows && result.rows.length > 0) {
+                // Convert database format to app format
+                staffData = result.rows.map(s => ({
+                    sl: s.sl,
+                    name: s.name,
+                    designation: s.designation,
+                    type: s.type,
+                    dept: s.dept,
+                    status: s.status,
+                    dob: s.dob,
+                    empId: s.emp_id,
+                    doe: s.doe,
+                    bankAcct: s.bank_acct,
+                    pan: s.pan,
+                    aadhar: s.aadhar,
+                    phone: s.phone,
+                    email: s.email
+                }));
+                console.log('✅ Staff data loaded from database (direct):', staffData.length, 'records');
+                return true;
+            } else {
+                throw new Error('No staff data found in database');
+            }
         }
     } catch (error) {
         showToast('Error loading staff data: ' + error.message, 'error');
@@ -1176,43 +1215,71 @@ async function saveLICDetails(e) {
 
     // Now send to database in background
     try {
-        const insertedRecords = [];
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ policies })
+            });
 
-        // Insert each policy
-        for (const policy of policies) {
-            const query = `INSERT INTO staff_lic_records
-                (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                RETURNING *`;
-            const params = [
-                policy.staff_emp_id,
-                policy.staff_sl,
-                policy.staff_name,
-                policy.staff_dept,
-                policy.staff_designation,
-                policy.staff_type,
-                policy.policy_no,
-                policy.premium_amount,
-                policy.maturity_date
-            ];
-            const result = await executeSQL(query, params);
+            const result = await response.json();
 
-            if (result.success && result.rows && result.rows.length > 0) {
-                insertedRecords.push(result.rows[0]);
+            if (response.ok) {
+                // Replace temp records with real server records
+                licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
+                result.records.forEach(record => {
+                    licRecords[empId].push(record);
+                });
+
+                // Update UI with real data
+                updateStaffItem(empId);
+                updateStats();
             } else {
-                throw new Error('Failed to insert policy');
+                throw new Error(result.error || 'Failed to save policies');
             }
+        } else {
+            // PRODUCTION MODE: Direct database access
+            const insertedRecords = [];
+
+            // Insert each policy
+            for (const policy of policies) {
+                const query = `INSERT INTO staff_lic_records
+                    (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING *`;
+                const params = [
+                    policy.staff_emp_id,
+                    policy.staff_sl,
+                    policy.staff_name,
+                    policy.staff_dept,
+                    policy.staff_designation,
+                    policy.staff_type,
+                    policy.policy_no,
+                    policy.premium_amount,
+                    policy.maturity_date
+                ];
+                const result = await executeSQL(query, params);
+
+                if (result.success && result.rows && result.rows.length > 0) {
+                    insertedRecords.push(result.rows[0]);
+                } else {
+                    throw new Error('Failed to insert policy');
+                }
+            }
+
+            // Replace temp records with real database records
+            licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
+            insertedRecords.forEach(record => {
+                licRecords[empId].push(record);
+            });
+
+            // Update UI with real data
+            updateStaffItem(empId);
+            updateStats();
         }
-
-        // Replace temp records with real database records
-        licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
-        insertedRecords.forEach(record => {
-            licRecords[empId].push(record);
-        });
-
-        // Update UI with real data
-        updateStaffItem(empId);
-        updateStats();
     } catch (error) {
         // Database error - rollback optimistic update
         licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
@@ -1296,31 +1363,69 @@ async function updatePolicy(e) {
     }
 
     try {
-        const query = `UPDATE staff_lic_records
-            SET policy_no = $1, premium_amount = $2, maturity_date = $3, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4
-            RETURNING *`;
-        const params = [policyNo.toUpperCase(), parseFloat(premiumAmount) || 0, maturityDate || null, policyId];
-        const result = await executeSQL(query, params);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    policy_no: policyNo.toUpperCase(),
+                    premium_amount: parseFloat(premiumAmount) || 0,
+                    maturity_date: maturityDate || null
+                })
+            });
 
-        if (result.success && result.rows && result.rows.length > 0) {
-            // Update local record
-            const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
-            if (policyIndex !== -1) {
-                licRecords[empId][policyIndex] = result.rows[0];
+            const result = await response.json();
+
+            if (response.ok) {
+                // Update local record
+                const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
+                if (policyIndex !== -1) {
+                    licRecords[empId][policyIndex] = result.record;
+                }
+
+                // Close modal
+                closeEditModalFunc();
+
+                // Refresh display
+                displayExistingPolicies(empId);
+                updateStaffItem(empId);
+                updateStats();
+
+                showToast('Policy updated successfully!', 'success');
+            } else {
+                showToast('Error: ' + result.error, 'error');
             }
-
-            // Close modal
-            closeEditModalFunc();
-
-            // Refresh display
-            displayExistingPolicies(empId);
-            updateStaffItem(empId);
-            updateStats();
-
-            showToast('Policy updated successfully!', 'success');
         } else {
-            showToast('Error updating policy', 'error');
+            // PRODUCTION MODE: Direct database access
+            const query = `UPDATE staff_lic_records
+                SET policy_no = $1, premium_amount = $2, maturity_date = $3, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $4
+                RETURNING *`;
+            const params = [policyNo.toUpperCase(), parseFloat(premiumAmount) || 0, maturityDate || null, policyId];
+            const result = await executeSQL(query, params);
+
+            if (result.success && result.rows && result.rows.length > 0) {
+                // Update local record
+                const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
+                if (policyIndex !== -1) {
+                    licRecords[empId][policyIndex] = result.rows[0];
+                }
+
+                // Close modal
+                closeEditModalFunc();
+
+                // Refresh display
+                displayExistingPolicies(empId);
+                updateStaffItem(empId);
+                updateStats();
+
+                showToast('Policy updated successfully!', 'success');
+            } else {
+                showToast('Error updating policy', 'error');
+            }
         }
     } catch (error) {
         showToast('Error updating policy: ' + error.message, 'error');
@@ -1355,31 +1460,65 @@ async function deletePolicy(policyId, policyNo) {
     }
 
     try {
-        const query = `DELETE FROM staff_lic_records WHERE id = $1`;
-        const result = await executeSQL(query, [policyId]);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
+                method: 'DELETE'
+            });
 
-        if (result.success) {
-            // Remove from local records
-            licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
+            const result = await response.json();
 
-            // If no more policies, remove the entry
-            if (licRecords[empId].length === 0) {
-                delete licRecords[empId];
-            }
+            if (response.ok) {
+                // Remove from local records
+                licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
 
-            // Refresh display
-            if (licRecords[empId] && licRecords[empId].length > 0) {
-                displayExistingPolicies(empId);
+                // If no more policies, remove the entry
+                if (licRecords[empId].length === 0) {
+                    delete licRecords[empId];
+                }
+
+                // Refresh display
+                if (licRecords[empId] && licRecords[empId].length > 0) {
+                    displayExistingPolicies(empId);
+                } else {
+                    document.getElementById('existingPolicies').innerHTML = '';
+                }
+
+                updateStaffItem(empId);
+                updateStats();
+
+                showToast('Policy deleted successfully!', 'success');
             } else {
-                document.getElementById('existingPolicies').innerHTML = '';
+                showToast('Error: ' + result.error, 'error');
             }
-
-            updateStaffItem(empId);
-            updateStats();
-
-            showToast('Policy deleted successfully!', 'success');
         } else {
-            showToast('Error deleting policy', 'error');
+            // PRODUCTION MODE: Direct database access
+            const query = `DELETE FROM staff_lic_records WHERE id = $1`;
+            const result = await executeSQL(query, [policyId]);
+
+            if (result.success) {
+                // Remove from local records
+                licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
+
+                // If no more policies, remove the entry
+                if (licRecords[empId].length === 0) {
+                    delete licRecords[empId];
+                }
+
+                // Refresh display
+                if (licRecords[empId] && licRecords[empId].length > 0) {
+                    displayExistingPolicies(empId);
+                } else {
+                    document.getElementById('existingPolicies').innerHTML = '';
+                }
+
+                updateStaffItem(empId);
+                updateStats();
+
+                showToast('Policy deleted successfully!', 'success');
+            } else {
+                showToast('Error deleting policy', 'error');
+            }
         }
     } catch (error) {
         showToast('Error deleting policy: ' + error.message, 'error');
@@ -1390,26 +1529,54 @@ async function deletePolicy(policyId, policyNo) {
 // Fetch LIC records from database
 async function fetchLICRecords() {
     try {
-        const query = `SELECT
-            id, staff_sl, staff_emp_id, staff_name, staff_dept, staff_designation,
-            staff_type, policy_no, premium_amount, maturity_date, created_at, updated_at
-            FROM staff_lic_records
-            ORDER BY staff_emp_id, created_at`;
-        const result = await executeSQL(query);
-
-        if (result.success && result.rows) {
-            // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
-            licRecords = {};
-            result.rows.forEach(record => {
-                const key = record.staff_emp_id || record.staff_sl;
-                if (!licRecords[key]) {
-                    licRecords[key] = [];
-                }
-                licRecords[key].push(record);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
+                cache: 'no-cache'
             });
-            return true;
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch LIC records');
+            }
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
+                licRecords = {};
+                result.records.forEach(record => {
+                    const key = record.staff_emp_id || record.staff_sl;
+                    if (!licRecords[key]) {
+                        licRecords[key] = [];
+                    }
+                    licRecords[key].push(record);
+                });
+                return true;
+            }
+            return false;
+        } else {
+            // PRODUCTION MODE: Direct database access
+            const query = `SELECT
+                id, staff_sl, staff_emp_id, staff_name, staff_dept, staff_designation,
+                staff_type, policy_no, premium_amount, maturity_date, created_at, updated_at
+                FROM staff_lic_records
+                ORDER BY staff_emp_id, created_at`;
+            const result = await executeSQL(query);
+
+            if (result.success && result.rows) {
+                // Group records by empId (use staff_emp_id if available, fallback to staff_sl for backward compatibility)
+                licRecords = {};
+                result.rows.forEach(record => {
+                    const key = record.staff_emp_id || record.staff_sl;
+                    if (!licRecords[key]) {
+                        licRecords[key] = [];
+                    }
+                    licRecords[key].push(record);
+                });
+                return true;
+            }
+            return false;
         }
-        return false;
     } catch (error) {
         console.error('Error fetching LIC records:', error);
         // Don't show error toast here as it's not critical for initial load
@@ -1481,32 +1648,59 @@ function closeSidebarMenu() {
 async function handleBackup() {
     try {
         showLoading(true);
-        const query = `SELECT * FROM staff_lic_records ORDER BY id`;
-        const result = await executeSQL(query);
 
-        if (result.success) {
-            const backup = {
-                backup_date: new Date().toISOString(),
-                record_count: result.rows.length,
-                data: result.rows
-            };
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/backup`);
+            const result = await response.json();
 
-            // Create download link
-            const dataStr = JSON.stringify(backup, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            if (response.ok) {
+                // Create download link
+                const dataStr = JSON.stringify(result.backup, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
 
-            showToast(`Backup created successfully! ${result.rows.length} records backed up.`, 'success');
-            closeSidebarMenu();
+                showToast(`Backup created successfully! ${result.backup.record_count} records backed up.`, 'success');
+                closeSidebarMenu();
+            } else {
+                showToast('Error creating backup: ' + result.error, 'error');
+            }
         } else {
-            showToast('Error creating backup', 'error');
+            // PRODUCTION MODE: Direct database access
+            const query = `SELECT * FROM staff_lic_records ORDER BY id`;
+            const result = await executeSQL(query);
+
+            if (result.success) {
+                const backup = {
+                    backup_date: new Date().toISOString(),
+                    record_count: result.rows.length,
+                    data: result.rows
+                };
+
+                // Create download link
+                const dataStr = JSON.stringify(backup, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showToast(`Backup created successfully! ${result.rows.length} records backed up.`, 'success');
+                closeSidebarMenu();
+            } else {
+                showToast('Error creating backup', 'error');
+            }
         }
     } catch (error) {
         showToast('Error creating backup: ' + error.message, 'error');
@@ -1542,40 +1736,64 @@ async function handleRestore(event) {
             return;
         }
 
-        // Delete all existing records
-        let deleteQuery = `DELETE FROM staff_lic_records`;
-        let deleteResult = await executeSQL(deleteQuery);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/restore`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: backupData.data })
+            });
 
-        if (!deleteResult.success) {
-            showToast('Error clearing existing data', 'error');
-            return;
-        }
+            const result = await response.json();
 
-        // Insert backup data
-        let insertedCount = 0;
-        for (const record of backupData.data) {
-            const insertQuery = `INSERT INTO staff_lic_records
-                (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
-            const params = [
-                record.staff_emp_id, record.staff_sl, record.staff_name, record.staff_dept,
-                record.staff_designation, record.staff_type, record.policy_no,
-                record.premium_amount, record.maturity_date
-            ];
-            const insertResult = await executeSQL(insertQuery, params);
-            if (insertResult.success) {
-                insertedCount++;
+            if (response.ok) {
+                showToast(result.message, 'success');
+                closeSidebarMenu();
+                await fetchLICRecords();
+                displayStaff();
+                updateStats();
+            } else {
+                showToast('Error restoring data: ' + result.error, 'error');
             }
-        }
-
-        if (insertedCount > 0) {
-            showToast(`Data restored successfully! ${insertedCount} records restored.`, 'success');
-            closeSidebarMenu();
-            await fetchLICRecords();
-            displayStaff();
-            updateStats();
         } else {
-            showToast('Error restoring data', 'error');
+            // PRODUCTION MODE: Direct database access
+            // Delete all existing records
+            let deleteQuery = `DELETE FROM staff_lic_records`;
+            let deleteResult = await executeSQL(deleteQuery);
+
+            if (!deleteResult.success) {
+                showToast('Error clearing existing data', 'error');
+                return;
+            }
+
+            // Insert backup data
+            let insertedCount = 0;
+            for (const record of backupData.data) {
+                const insertQuery = `INSERT INTO staff_lic_records
+                    (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
+                const params = [
+                    record.staff_emp_id, record.staff_sl, record.staff_name, record.staff_dept,
+                    record.staff_designation, record.staff_type, record.policy_no,
+                    record.premium_amount, record.maturity_date
+                ];
+                const insertResult = await executeSQL(insertQuery, params);
+                if (insertResult.success) {
+                    insertedCount++;
+                }
+            }
+
+            if (insertedCount > 0) {
+                showToast(`Data restored successfully! ${insertedCount} records restored.`, 'success');
+                closeSidebarMenu();
+                await fetchLICRecords();
+                displayStaff();
+                updateStats();
+            } else {
+                showToast('Error restoring data', 'error');
+            }
         }
     } catch (error) {
         showToast('Error restoring data: ' + error.message, 'error');
@@ -1607,27 +1825,50 @@ async function handleDeleteAll() {
     try {
         showLoading(true);
 
-        // Simple password check (client-side)
-        if (password !== 'teju2015') {
-            showToast('Incorrect password', 'error');
-            showLoading(false);
-            return;
-        }
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/delete-all`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password })
+            });
 
-        const query = `DELETE FROM staff_lic_records`;
-        const result = await executeSQL(query);
+            const result = await response.json();
 
-        if (result.success) {
-            showToast('All LIC records deleted successfully', 'success');
-            closeSidebarMenu();
-            licRecords = {};
-            displayStaff();
-            updateStats();
-        } else {
-            if (response.status === 401) {
-                showToast('Invalid password!', 'error');
+            if (response.ok) {
+                showToast(result.message, 'success');
+                closeSidebarMenu();
+                licRecords = {};
+                displayStaff();
+                updateStats();
             } else {
-                showToast('Error deleting data: ' + result.error, 'error');
+                if (response.status === 401) {
+                    showToast('Invalid password!', 'error');
+                } else {
+                    showToast('Error: ' + result.error, 'error');
+                }
+            }
+        } else {
+            // PRODUCTION MODE: Direct database access with client-side password check
+            if (password !== 'teju2015') {
+                showToast('Incorrect password', 'error');
+                showLoading(false);
+                return;
+            }
+
+            const query = `DELETE FROM staff_lic_records`;
+            const result = await executeSQL(query);
+
+            if (result.success) {
+                showToast('All LIC records deleted successfully', 'success');
+                closeSidebarMenu();
+                licRecords = {};
+                displayStaff();
+                updateStats();
+            } else {
+                showToast('Error deleting data', 'error');
             }
         }
     } catch (error) {
@@ -1794,13 +2035,31 @@ async function updateStaffCSV() {
 // Update policy staff_emp_id when staff empId changes
 async function updatePolicyStaffEmpId(oldEmpId, newEmpId) {
     try {
-        const query = `UPDATE staff_lic_records SET staff_emp_id = $1 WHERE staff_emp_id = $2`;
-        const result = await executeSQL(query, [newEmpId, oldEmpId]);
+        if (isLocalhost) {
+            // LOCAL MODE: Use Node.js backend API
+            const response = await fetch(`${API_BASE_URL}/api/lic-records/update-emp-id`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ oldEmpId, newEmpId })
+            });
 
-        if (!result.success) {
-            console.error('Failed to update policy staff emp IDs');
+            if (!response.ok) {
+                console.error('Failed to update policy staff emp IDs');
+            } else {
+                console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
+            }
         } else {
-            console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
+            // PRODUCTION MODE: Direct database access
+            const query = `UPDATE staff_lic_records SET staff_emp_id = $1 WHERE staff_emp_id = $2`;
+            const result = await executeSQL(query, [newEmpId, oldEmpId]);
+
+            if (!result.success) {
+                console.error('Failed to update policy staff emp IDs');
+            } else {
+                console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
+            }
         }
     } catch (error) {
         console.error('Error updating policy staff emp IDs:', error);
