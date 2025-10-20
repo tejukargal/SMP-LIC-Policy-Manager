@@ -8,7 +8,7 @@ let userType = null; // 'user' or 'admin'
 let isAuthenticated = false;
 let loggedInUserData = null; // Store logged-in user's staff data
 
-// Detect environment: localhost uses Node.js backend, production uses direct database
+// Detect environment for proper API routing
 const hostname = window.location.hostname;
 const isLocalhost = hostname === 'localhost' ||
                      hostname === '127.0.0.1' ||
@@ -20,8 +20,8 @@ const isLocalhost = hostname === 'localhost' ||
 const isGitHubPages = hostname.includes('github.io');
 
 // API Base URL configuration
-// - LOCAL: Use localhost backend
-// - PRODUCTION: Use same domain (for Netlify Functions) or deployed backend
+// - LOCAL: Use localhost backend (Node.js server on port 3000)
+// - PRODUCTION: Use same domain (Netlify Functions are at /.netlify/functions/*)
 const API_BASE_URL = isLocalhost
     ? 'http://localhost:3000'
     : (typeof DB_CONFIG !== 'undefined' && DB_CONFIG.PRODUCTION_API_URL && DB_CONFIG.PRODUCTION_API_URL !== ''
@@ -35,63 +35,8 @@ console.log(`  Full URL: ${window.location.href}`);
 console.log(`  Is Localhost: ${isLocalhost}`);
 console.log(`  Is GitHub Pages: ${isGitHubPages}`);
 console.log(`  API Base URL: ${API_BASE_URL || '(not configured)'}`);
-console.log(`  Mode: ${isLocalhost ? '🏠 LOCAL (using local backend)' : '☁️ PRODUCTION (using deployed backend)'}`);
-
-// Database helper function for direct SQL queries via Nile HTTP API (Production only)
-async function executeSQL(query, params = []) {
-    // Safety check: This function should NEVER be called in localhost mode
-    if (isLocalhost) {
-        console.error('❌ executeSQL called in LOCAL mode - this should NOT happen!');
-        console.error('Stack trace:', new Error().stack);
-        return {
-            success: false,
-            error: 'executeSQL should not be called in localhost mode. Use backend API instead.',
-            rows: [],
-            rowCount: 0
-        };
-    }
-
-    try {
-        if (typeof DB_CONFIG === 'undefined') {
-            throw new Error('DB_CONFIG is not defined. Make sure config.js is loaded.');
-        }
-
-        const url = `https://us-west-2.api.thenile.dev/databases/${DB_CONFIG.database}/query`;
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${DB_CONFIG.apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                query: query,
-                params: params
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Database query failed:', errorText);
-            throw new Error(`Database query failed: ${response.status} ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        return {
-            success: true,
-            rows: result.rows || [],
-            rowCount: result.rowCount || 0
-        };
-    } catch (error) {
-        console.error('Error executing SQL:', error);
-        return {
-            success: false,
-            error: error.message,
-            rows: [],
-            rowCount: 0
-        };
-    }
-}
+console.log(`  Mode: ${isLocalhost ? '🏠 LOCAL (using local Node.js backend)' : '☁️ PRODUCTION (using Netlify Functions)'}`);
+console.log(`  Note: All operations use backend API - no direct database access from frontend`);
 
 // DOM Elements
 const staffList = document.getElementById('staffList');
@@ -1222,79 +1167,37 @@ async function saveLICDetails(e) {
     // Show success message immediately
     showToast('LIC details saved successfully!', 'success');
 
-    // Now send to database in background
+    // Now send to backend in background (works for both local and production)
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ policies })
-            });
+        const response = await fetch(`${API_BASE_URL}/api/lic-records`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ policies })
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (response.ok) {
-                // Replace temp records with real server records
-                licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
-                result.records.forEach(record => {
-                    licRecords[empId].push(record);
-                });
-
-                // Update UI with real data
-                updateStaffItem(empId);
-                updateStats();
-            } else {
-                throw new Error(result.error || 'Failed to save policies');
-            }
-        } else {
-            // PRODUCTION MODE: Direct database access
-            const insertedRecords = [];
-
-            // Insert each policy
-            for (const policy of policies) {
-                const query = `INSERT INTO staff_lic_records
-                    (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                    RETURNING *`;
-                const params = [
-                    policy.staff_emp_id,
-                    policy.staff_sl,
-                    policy.staff_name,
-                    policy.staff_dept,
-                    policy.staff_designation,
-                    policy.staff_type,
-                    policy.policy_no,
-                    policy.premium_amount,
-                    policy.maturity_date
-                ];
-                const result = await executeSQL(query, params);
-
-                if (result.success && result.rows && result.rows.length > 0) {
-                    insertedRecords.push(result.rows[0]);
-                } else {
-                    throw new Error('Failed to insert policy');
-                }
-            }
-
-            // Replace temp records with real database records
+        if (response.ok) {
+            // Replace temp records with real server records
             licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
-            insertedRecords.forEach(record => {
+            result.records.forEach(record => {
                 licRecords[empId].push(record);
             });
 
             // Update UI with real data
             updateStaffItem(empId);
             updateStats();
+        } else {
+            throw new Error(result.error || 'Failed to save policies');
         }
     } catch (error) {
-        // Database error - rollback optimistic update
+        // Backend error - rollback optimistic update
         licRecords[empId] = licRecords[empId].filter(r => !r.id.toString().startsWith('temp_'));
         updateStaffItem(empId);
         updateStats();
-        showToast('Error saving to database: ' + error.message, 'error');
+        showToast('Error saving to backend: ' + error.message, 'error');
         console.error('Error:', error);
     }
 }
@@ -1372,69 +1275,39 @@ async function updatePolicy(e) {
     }
 
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    policy_no: policyNo.toUpperCase(),
-                    premium_amount: parseFloat(premiumAmount) || 0,
-                    maturity_date: maturityDate || null
-                })
-            });
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                policy_no: policyNo.toUpperCase(),
+                premium_amount: parseFloat(premiumAmount) || 0,
+                maturity_date: maturityDate || null
+            })
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (response.ok) {
-                // Update local record
-                const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
-                if (policyIndex !== -1) {
-                    licRecords[empId][policyIndex] = result.record;
-                }
-
-                // Close modal
-                closeEditModalFunc();
-
-                // Refresh display
-                displayExistingPolicies(empId);
-                updateStaffItem(empId);
-                updateStats();
-
-                showToast('Policy updated successfully!', 'success');
-            } else {
-                showToast('Error: ' + result.error, 'error');
+        if (response.ok) {
+            // Update local record
+            const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
+            if (policyIndex !== -1) {
+                licRecords[empId][policyIndex] = result.record;
             }
+
+            // Close modal
+            closeEditModalFunc();
+
+            // Refresh display
+            displayExistingPolicies(empId);
+            updateStaffItem(empId);
+            updateStats();
+
+            showToast('Policy updated successfully!', 'success');
         } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `UPDATE staff_lic_records
-                SET policy_no = $1, premium_amount = $2, maturity_date = $3, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $4
-                RETURNING *`;
-            const params = [policyNo.toUpperCase(), parseFloat(premiumAmount) || 0, maturityDate || null, policyId];
-            const result = await executeSQL(query, params);
-
-            if (result.success && result.rows && result.rows.length > 0) {
-                // Update local record
-                const policyIndex = licRecords[empId].findIndex(p => p.id == policyId);
-                if (policyIndex !== -1) {
-                    licRecords[empId][policyIndex] = result.rows[0];
-                }
-
-                // Close modal
-                closeEditModalFunc();
-
-                // Refresh display
-                displayExistingPolicies(empId);
-                updateStaffItem(empId);
-                updateStats();
-
-                showToast('Policy updated successfully!', 'success');
-            } else {
-                showToast('Error updating policy', 'error');
-            }
+            showToast('Error: ' + result.error, 'error');
         }
     } catch (error) {
         showToast('Error updating policy: ' + error.message, 'error');
@@ -1469,65 +1342,35 @@ async function deletePolicy(policyId, policyNo) {
     }
 
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
-                method: 'DELETE'
-            });
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/lic-records/${policyId}`, {
+            method: 'DELETE'
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (response.ok) {
-                // Remove from local records
-                licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
+        if (response.ok) {
+            // Remove from local records
+            licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
 
-                // If no more policies, remove the entry
-                if (licRecords[empId].length === 0) {
-                    delete licRecords[empId];
-                }
-
-                // Refresh display
-                if (licRecords[empId] && licRecords[empId].length > 0) {
-                    displayExistingPolicies(empId);
-                } else {
-                    document.getElementById('existingPolicies').innerHTML = '';
-                }
-
-                updateStaffItem(empId);
-                updateStats();
-
-                showToast('Policy deleted successfully!', 'success');
-            } else {
-                showToast('Error: ' + result.error, 'error');
+            // If no more policies, remove the entry
+            if (licRecords[empId].length === 0) {
+                delete licRecords[empId];
             }
+
+            // Refresh display
+            if (licRecords[empId] && licRecords[empId].length > 0) {
+                displayExistingPolicies(empId);
+            } else {
+                document.getElementById('existingPolicies').innerHTML = '';
+            }
+
+            updateStaffItem(empId);
+            updateStats();
+
+            showToast('Policy deleted successfully!', 'success');
         } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `DELETE FROM staff_lic_records WHERE id = $1`;
-            const result = await executeSQL(query, [policyId]);
-
-            if (result.success) {
-                // Remove from local records
-                licRecords[empId] = licRecords[empId].filter(p => p.id != policyId);
-
-                // If no more policies, remove the entry
-                if (licRecords[empId].length === 0) {
-                    delete licRecords[empId];
-                }
-
-                // Refresh display
-                if (licRecords[empId] && licRecords[empId].length > 0) {
-                    displayExistingPolicies(empId);
-                } else {
-                    document.getElementById('existingPolicies').innerHTML = '';
-                }
-
-                updateStaffItem(empId);
-                updateStats();
-
-                showToast('Policy deleted successfully!', 'success');
-            } else {
-                showToast('Error deleting policy', 'error');
-            }
+            showToast('Error: ' + result.error, 'error');
         }
     } catch (error) {
         showToast('Error deleting policy: ' + error.message, 'error');
@@ -1635,58 +1478,27 @@ async function handleBackup() {
     try {
         showLoading(true);
 
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/backup`);
-            const result = await response.json();
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/backup`);
+        const result = await response.json();
 
-            if (response.ok) {
-                // Create download link
-                const dataStr = JSON.stringify(result.backup, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
+        if (response.ok) {
+            // Create download link
+            const dataStr = JSON.stringify(result.backup, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
 
-                showToast(`Backup created successfully! ${result.backup.record_count} records backed up.`, 'success');
-                closeSidebarMenu();
-            } else {
-                showToast('Error creating backup: ' + result.error, 'error');
-            }
+            showToast(`Backup created successfully! ${result.backup.record_count} records backed up.`, 'success');
+            closeSidebarMenu();
         } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `SELECT * FROM staff_lic_records ORDER BY id`;
-            const result = await executeSQL(query);
-
-            if (result.success) {
-                const backup = {
-                    backup_date: new Date().toISOString(),
-                    record_count: result.rows.length,
-                    data: result.rows
-                };
-
-                // Create download link
-                const dataStr = JSON.stringify(backup, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `staff-lic-backup-${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-
-                showToast(`Backup created successfully! ${result.rows.length} records backed up.`, 'success');
-                closeSidebarMenu();
-            } else {
-                showToast('Error creating backup', 'error');
-            }
+            showToast('Error creating backup: ' + result.error, 'error');
         }
     } catch (error) {
         showToast('Error creating backup: ' + error.message, 'error');
@@ -1722,64 +1534,25 @@ async function handleRestore(event) {
             return;
         }
 
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/restore`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ data: backupData.data })
-            });
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/restore`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: backupData.data })
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (response.ok) {
-                showToast(result.message, 'success');
-                closeSidebarMenu();
-                await fetchLICRecords();
-                displayStaff();
-                updateStats();
-            } else {
-                showToast('Error restoring data: ' + result.error, 'error');
-            }
+        if (response.ok) {
+            showToast(result.message, 'success');
+            closeSidebarMenu();
+            await fetchLICRecords();
+            displayStaff();
+            updateStats();
         } else {
-            // PRODUCTION MODE: Direct database access
-            // Delete all existing records
-            let deleteQuery = `DELETE FROM staff_lic_records`;
-            let deleteResult = await executeSQL(deleteQuery);
-
-            if (!deleteResult.success) {
-                showToast('Error clearing existing data', 'error');
-                return;
-            }
-
-            // Insert backup data
-            let insertedCount = 0;
-            for (const record of backupData.data) {
-                const insertQuery = `INSERT INTO staff_lic_records
-                    (staff_emp_id, staff_sl, staff_name, staff_dept, staff_designation, staff_type, policy_no, premium_amount, maturity_date)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
-                const params = [
-                    record.staff_emp_id, record.staff_sl, record.staff_name, record.staff_dept,
-                    record.staff_designation, record.staff_type, record.policy_no,
-                    record.premium_amount, record.maturity_date
-                ];
-                const insertResult = await executeSQL(insertQuery, params);
-                if (insertResult.success) {
-                    insertedCount++;
-                }
-            }
-
-            if (insertedCount > 0) {
-                showToast(`Data restored successfully! ${insertedCount} records restored.`, 'success');
-                closeSidebarMenu();
-                await fetchLICRecords();
-                displayStaff();
-                updateStats();
-            } else {
-                showToast('Error restoring data', 'error');
-            }
+            showToast('Error restoring data: ' + result.error, 'error');
         }
     } catch (error) {
         showToast('Error restoring data: ' + error.message, 'error');
@@ -1811,50 +1584,28 @@ async function handleDeleteAll() {
     try {
         showLoading(true);
 
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/delete-all`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ password })
-            });
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/delete-all`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ password })
+        });
 
-            const result = await response.json();
+        const result = await response.json();
 
-            if (response.ok) {
-                showToast(result.message, 'success');
-                closeSidebarMenu();
-                licRecords = {};
-                displayStaff();
-                updateStats();
-            } else {
-                if (response.status === 401) {
-                    showToast('Invalid password!', 'error');
-                } else {
-                    showToast('Error: ' + result.error, 'error');
-                }
-            }
+        if (response.ok) {
+            showToast(result.message, 'success');
+            closeSidebarMenu();
+            licRecords = {};
+            displayStaff();
+            updateStats();
         } else {
-            // PRODUCTION MODE: Direct database access with client-side password check
-            if (password !== 'teju2015') {
-                showToast('Incorrect password', 'error');
-                showLoading(false);
-                return;
-            }
-
-            const query = `DELETE FROM staff_lic_records`;
-            const result = await executeSQL(query);
-
-            if (result.success) {
-                showToast('All LIC records deleted successfully', 'success');
-                closeSidebarMenu();
-                licRecords = {};
-                displayStaff();
-                updateStats();
+            if (response.status === 401) {
+                showToast('Invalid password!', 'error');
             } else {
-                showToast('Error deleting data', 'error');
+                showToast('Error: ' + result.error, 'error');
             }
         }
     } catch (error) {
@@ -2021,31 +1772,19 @@ async function updateStaffCSV() {
 // Update policy staff_emp_id when staff empId changes
 async function updatePolicyStaffEmpId(oldEmpId, newEmpId) {
     try {
-        if (isLocalhost) {
-            // LOCAL MODE: Use Node.js backend API
-            const response = await fetch(`${API_BASE_URL}/api/lic-records/update-emp-id`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ oldEmpId, newEmpId })
-            });
+        // ALWAYS use backend API (works for both local and production/Netlify)
+        const response = await fetch(`${API_BASE_URL}/api/lic-records/update-emp-id`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ oldEmpId, newEmpId })
+        });
 
-            if (!response.ok) {
-                console.error('Failed to update policy staff emp IDs');
-            } else {
-                console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
-            }
+        if (!response.ok) {
+            console.error('Failed to update policy staff emp IDs');
         } else {
-            // PRODUCTION MODE: Direct database access
-            const query = `UPDATE staff_lic_records SET staff_emp_id = $1 WHERE staff_emp_id = $2`;
-            const result = await executeSQL(query, [newEmpId, oldEmpId]);
-
-            if (!result.success) {
-                console.error('Failed to update policy staff emp IDs');
-            } else {
-                console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
-            }
+            console.log(`Updated policy emp IDs from ${oldEmpId} to ${newEmpId}`);
         }
     } catch (error) {
         console.error('Error updating policy staff emp IDs:', error);
