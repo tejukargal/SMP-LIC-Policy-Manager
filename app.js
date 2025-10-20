@@ -9,14 +9,44 @@ let isAuthenticated = false;
 let loggedInUserData = null; // Store logged-in user's staff data
 
 // Detect environment: localhost uses Node.js backend, production uses direct database
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const hostname = window.location.hostname;
+const isLocalhost = hostname === 'localhost' ||
+                     hostname === '127.0.0.1' ||
+                     hostname === '' ||
+                     hostname.startsWith('192.168.') || // Local network
+                     hostname.startsWith('10.') ||      // Local network
+                     hostname.endsWith('.local');       // Local network
+
+const isGitHubPages = hostname.includes('github.io');
 const API_BASE_URL = isLocalhost ? 'http://localhost:3000' : '';
 
-console.log(`Running in ${isLocalhost ? 'LOCAL' : 'PRODUCTION'} mode`);
+console.log(`🔍 Environment Detection:`);
+console.log(`  Hostname: ${hostname}`);
+console.log(`  Protocol: ${window.location.protocol}`);
+console.log(`  Full URL: ${window.location.href}`);
+console.log(`  Is Localhost: ${isLocalhost}`);
+console.log(`  Is GitHub Pages: ${isGitHubPages}`);
+console.log(`  Mode: ${isLocalhost ? '🏠 LOCAL (using backend server at localhost:3000)' : '☁️ PRODUCTION (direct database connection)'}`);
 
 // Database helper function for direct SQL queries via Nile HTTP API (Production only)
 async function executeSQL(query, params = []) {
+    // Safety check: This function should NEVER be called in localhost mode
+    if (isLocalhost) {
+        console.error('❌ executeSQL called in LOCAL mode - this should NOT happen!');
+        console.error('Stack trace:', new Error().stack);
+        return {
+            success: false,
+            error: 'executeSQL should not be called in localhost mode. Use backend API instead.',
+            rows: [],
+            rowCount: 0
+        };
+    }
+
     try {
+        if (typeof DB_CONFIG === 'undefined') {
+            throw new Error('DB_CONFIG is not defined. Make sure config.js is loaded.');
+        }
+
         const url = `https://us-west-2.api.thenile.dev/databases/${DB_CONFIG.database}/query`;
 
         const response = await fetch(url, {
